@@ -13,6 +13,8 @@ function loadProfile(){
   avatarEl.textContent=u.charAt(0).toUpperCase();
   bioEl.textContent=localStorage.getItem("beyondBio")||"Welcome to my Beyond profile 🚀";
   loadFollowingCount();
+  loadLikeCount();
+  loadNotifications();
   loadVideos();
 }
 
@@ -65,11 +67,13 @@ async function loadVideos(){
 
 function openDB(){
   return new Promise((resolve,reject)=>{
-    const r=indexedDB.open("BeyondDatabase",2);
+    const r=indexedDB.open("BeyondDatabase",3);
     r.onupgradeneeded=e=>{
       const db=e.target.result;
       if(!db.objectStoreNames.contains("videos")) db.createObjectStore("videos",{keyPath:"id",autoIncrement:true});
       if(!db.objectStoreNames.contains("comments")) db.createObjectStore("comments",{keyPath:"id",autoIncrement:true});
+      if(!db.objectStoreNames.contains("likes")) db.createObjectStore("likes",{keyPath:"key"});
+      if(!db.objectStoreNames.contains("notifications")) db.createObjectStore("notifications",{keyPath:"id",autoIncrement:true});
     };
     r.onsuccess=()=>resolve(r.result);
     r.onerror=()=>reject(r.error);
@@ -88,6 +92,10 @@ function editProfile(){
     bioEl.textContent=value;
   }
 }
+
+async function loadNotifications(){const db=await openDB();const req=db.transaction("notifications","readonly").objectStore("notifications").getAll();req.onsuccess=()=>{const count=req.result.filter(n=>n.username===currentUser()&&!n.read).length;const b=document.getElementById("notificationButton");if(b)b.textContent=count?"🔔 "+count:"🔔 Notifications"};}
+
+function openNotifications(){location.href="notifications.html";}
 
 function showLikedVideos(){
   alert("Liked videos will be added next.");
