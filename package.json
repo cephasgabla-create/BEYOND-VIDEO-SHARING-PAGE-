@@ -1,0 +1,5 @@
+{
+  "name":"beyond-database-backend",
+  "private":true,
+  "dependencies":{"@supabase/supabase-js":"latest"}
+}
