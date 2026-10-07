@@ -61,3 +61,26 @@ async function publishVideo(){
 function openGoLive(){document.getElementById("goLiveModal")?.classList.add("show")}
 function closeGoLive(){document.getElementById("goLiveModal")?.classList.remove("show")}
 function startConfiguredLive(){const title=document.getElementById("liveTitleInput").value.trim()||"Beyond Live";const category=document.getElementById("liveCategory").value;const chat=document.getElementById("liveChatEnabled").checked;localStorage.setItem("beyondLiveConfig",JSON.stringify({title,category,chat,startedAt:new Date().toISOString(),active:true}));closeGoLive();window.location.href="index.html?live=1"}
+
+async function uploadVideoToSupabase(file,caption=""){
+ const db=window.beyondDB||initBeyondDatabase();
+ if(!db)throw new Error("Configure Supabase in supabase.js first.");
+ const {data:{user}}=await db.auth.getUser();
+ if(!user)throw new Error("Please log in before uploading.");
+ if(!file.type.startsWith("video/"))throw new Error("Please choose a video file.");
+ const ext=(file.name.split(".").pop()||"mp4").toLowerCase();
+ const path=user.id+"/"+crypto.randomUUID()+"."+ext;
+ const {error:storageError}=await db.storage.from("videos").upload(path,file,{contentType:file.type,upsert:false});
+ if(storageError)throw storageError;
+ const {data:publicData}=db.storage.from("videos").getPublicUrl(path);
+ const videoUrl=publicData.publicUrl;
+ const {data:row,error:dbError}=await db.from("videos").insert({user_id:user.id,video_url:videoUrl,caption}).select().single();
+ if(dbError){await db.storage.from("videos").remove([path]);throw dbError;}
+ return row;
+}
+
+async function uploadBeyondVideoWithDatabase(file,caption=""){
+ const result=await uploadVideoToSupabase(file,caption);
+ localStorage.setItem("beyondLastUploadedVideo",JSON.stringify(result));
+ return result;
+}
