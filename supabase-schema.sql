@@ -85,3 +85,24 @@ create table if not exists live_reactions (
 create index if not exists messages_receiver_idx on messages(receiver_id, created_at desc);
 create index if not exists live_messages_room_idx on live_messages(room_id, created_at);
 create index if not exists live_rooms_active_idx on live_rooms(active, created_at desc);
+
+
+-- Run once in Supabase SQL Editor:
+insert into storage.buckets (id, name, public)
+values ('videos', 'videos', true)
+on conflict (id) do nothing;
+
+create policy "Beyond users can upload videos"
+on storage.objects for insert
+to authenticated
+with check (bucket_id = 'videos' and (storage.foldername(name))[1] = auth.uid()::text);
+
+create policy "Beyond videos are publicly readable"
+on storage.objects for select
+to public
+using (bucket_id = 'videos');
+
+create policy "Beyond users can delete their videos"
+on storage.objects for delete
+to authenticated
+using (bucket_id = 'videos' and (storage.foldername(name))[1] = auth.uid()::text);
