@@ -16,7 +16,15 @@ function loadProfile(){
   loadVideos();
 }
 
-async function loadLikeCount(){const db=await openDB();const req=db.transaction("likes","readonly").objectStore("likes").getAll();req.onsuccess=()=>{const u=currentUser();likesEl.textContent=req.result.filter(l=>{return false}).length};}\n\nfunction loadFollowingCount(){
+async function loadLikeCount(){
+  const db=await openDB();
+  const videoReq=db.transaction("videos","readonly").objectStore("videos").getAll();
+  videoReq.onsuccess=()=>{
+    const ids=videoReq.result.filter(v=>v.username===currentUser()).map(v=>v.id);
+    const likeReq=db.transaction("likes","readonly").objectStore("likes").getAll();
+    likeReq.onsuccess=()=>likesEl.textContent=likeReq.result.filter(l=>ids.includes(l.postId)).length;
+  };
+}\n\nfunction loadFollowingCount(){
   try{
     followingEl.textContent=JSON.parse(localStorage.getItem("beyondFollowing")||"[]").length;
   }catch{
