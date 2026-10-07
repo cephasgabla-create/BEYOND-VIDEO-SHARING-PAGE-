@@ -106,5 +106,20 @@
     <div class="chat-compose"><input id="chatInput" maxlength="500" placeholder="Write a message..." onkeydown="if(event.key==='Enter')sendMessage()"><button onclick="sendMessage()">➤</button></div>
   </div>
 </section>
+<div id="liveOverlay" class="live-overlay" onclick="closeLive()"></div>
+<section id="livePanel" class="live-panel">
+  <div class="live-room">
+    <div class="live-top"><button onclick="closeLive()">✕</button><div class="live-badge">🔴 LIVE</div><div class="viewer-count">👁 <span id="liveViewers">128</span></div></div>
+    <div class="live-stage" id="liveStage"><div class="live-placeholder"><div class="live-logo">B</div><h2>Beyond Live</h2><p id="liveStatus">You are watching a live room</p></div><div id="reactionFloaters"></div></div>
+    <div class="live-info"><div><h2 id="liveCreator">@BeyondCreator</h2><span id="liveTitle">Welcome to Beyond Live! 🎥</span></div><button onclick="followLiveCreator(this)">+ Follow</button></div>
+    <div class="live-actions"><button onclick="sendReaction('❤️')">❤️</button><button onclick="sendReaction('🔥')">🔥</button><button onclick="sendReaction('👏')">👏</button><button onclick="sendReaction('😂')">😂</button><button onclick="shareLive()">↗ Share</button></div>
+    <div class="live-chat" id="liveChat"><div class="live-msg"><b>@Beyond</b><span>Welcome everyone! 👋</span></div><div class="live-msg"><b>@Creator</b><span>Thanks for joining the live!</span></div></div>
+    <div class="live-input"><input id="liveChatInput" maxlength="180" placeholder="Say something..." onkeydown="if(event.key==='Enter')sendLiveMessage()"><button onclick="sendLiveMessage()">➤</button></div>
+    <div class="creator-controls">
+      <div><span class="eyebrow">CREATOR CONTROLS</span><h3>Manage your live</h3></div>
+      <div class="control-grid"><button onclick="toggleLiveMic(this)">🎙 Mic On</button><button onclick="toggleLiveCamera(this)">📹 Camera On</button><button onclick="muteLiveChat(this)">💬 Chat On</button><button onclick="endLive()">⏹ End Live</button></div>
+    </div>
+  </div>
+</section>
 </body>
 </html>
