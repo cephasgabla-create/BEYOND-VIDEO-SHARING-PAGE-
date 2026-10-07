@@ -1,7 +1,7 @@
 const usernameEl=document.getElementById("username");
 const avatarEl=document.getElementById("avatar");
 const bioEl=document.getElementById("bio");
-const followingEl=document.getElementById("following");
+const followingEl=document.getElementById("following"),likesEl=document.getElementById("likes");
 
 function currentUser(){
   return localStorage.getItem("beyondUsername")||"BeyondCreator";
@@ -16,7 +16,7 @@ function loadProfile(){
   loadVideos();
 }
 
-function loadFollowingCount(){
+async function loadLikeCount(){const db=await openDB();const req=db.transaction("likes","readonly").objectStore("likes").getAll();req.onsuccess=()=>{const u=currentUser();likesEl.textContent=req.result.filter(l=>{return false}).length};}\n\nfunction loadFollowingCount(){
   try{
     followingEl.textContent=JSON.parse(localStorage.getItem("beyondFollowing")||"[]").length;
   }catch{
