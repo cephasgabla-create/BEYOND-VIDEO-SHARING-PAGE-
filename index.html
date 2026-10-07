@@ -56,10 +56,21 @@
       </div>
     </section>
   </main>
+  <section id="discoverPanel" class="discover-panel">
+    <div class="discover-head"><div><span class="eyebrow">BEYOND EXPLORE</span><h1>Discover</h1></div><button onclick="closeDiscover()">✕</button></div>
+    <div class="discover-search"><input id="discoverInput" placeholder="Search creators, topics and hashtags..." oninput="filterDiscover()"><button onclick="openSearch()">Search</button></div>
+    <div class="category-row"><button class="active">🔥 Trending</button><button>🎵 Music</button><button>⚽ Sports</button><button>🎮 Gaming</button><button>😂 Comedy</button><button>🎨 Creative</button></div>
+    <div class="discover-grid" id="discoverGrid">
+      <article class="trend-card"><span>01</span><h3>Trending Now</h3><p>#Beyond • #Viral • #ForYou</p></article>
+      <article class="trend-card"><span>02</span><h3>Top Creators</h3><p>Discover creators gaining attention.</p></article>
+      <article class="trend-card"><span>03</span><h3>Popular Videos</h3><p>Watch what the Beyond community loves.</p></article>
+      <article class="trend-card"><span>04</span><h3>Fresh Today</h3><p>New posts and creators to explore.</p></article>
+    </div>
+  </section>
 
   <nav class="bottom-nav">
     <button onclick="showFeed()">🏠 <span>Home</span></button>
-    <button onclick="openSearch()">🔍 <span>Discover</span></button>
+    <button onclick="openDiscover()">🔍 <span>Discover</span></button>
     <button class="upload-button" onclick="openUpload()">＋</button>
     <button onclick="openProfile()">👤 <span>Profile</span></button>
   </nav>
