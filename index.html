@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Beyond - Short Videos</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top-bar">
+    <div class="logo">Beyond</div>
+    <div class="nav-links">
+      <button onclick="showFeed()">For You</button>
+      <button onclick="showFollowing()">Following</button>
+    </div>
+    <div class="top-actions">
+      <button class="search-btn" onclick="openSearch()">🔍</button>
+      <button class="login-btn" onclick="openLogin()">Log in</button>
+    </div>
+  </header>
+
+  <main id="feed">
+    <section class="video-card" data-creator="BeyondCreator">
+      <video class="video" src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4" loop muted playsinline></video>
+      <div class="video-info">
+        <div class="creator-row">
+          <h3>@BeyondCreator</h3>
+          <button class="follow-button" onclick="toggleFollow('BeyondCreator', this)">Follow</button>
+        </div>
+        <p>Welcome to Beyond 🚀</p>
+        <p>#Beyond #ShortVideos #ForYou</p>
+      </div>
+      <div class="video-actions">
+        <button onclick="likeVideo(this)">❤️ <span>0</span></button>
+        <button onclick="commentVideo('demo-1')">💬 <span>0</span></button>
+        <button onclick="shareVideo()">↗️ <span>Share</span></button>
+        <button onclick="openProfile()">👤 <span>Profile</span></button>
+      </div>
+    </section>
+
+    <section class="video-card" data-creator="Beyond">
+      <video class="video" src="https://www.w3schools.com/html/mov_bbb.mp4" loop muted playsinline></video>
+      <div class="video-info">
+        <div class="creator-row">
+          <h3>@Beyond</h3>
+          <button class="follow-button" onclick="toggleFollow('Beyond', this)">Follow</button>
+        </div>
+        <p>Make your moment go Beyond 🔥</p>
+        <p>#Beyond #Viral #Trending</p>
+      </div>
+      <div class="video-actions">
+        <button onclick="likeVideo(this)">❤️ <span>0</span></button>
+        <button onclick="commentVideo('demo-2')">💬 <span>0</span></button>
+        <button onclick="shareVideo()">↗️ <span>Share</span></button>
+        <button onclick="openProfile()">👤 <span>Profile</span></button>
+      </div>
+    </section>
+  </main>
+
+  <nav class="bottom-nav">
+    <button onclick="showFeed()">🏠 <span>Home</span></button>
+    <button onclick="openSearch()">🔍 <span>Discover</span></button>
+    <button class="upload-button" onclick="openUpload()">＋</button>
+    <button onclick="openProfile()">👤 <span>Profile</span></button>
+  </nav>
+
+  <div id="commentsOverlay" class="comments-overlay" onclick="closeComments()"></div>
+  <div id="commentsPanel" class="comments-panel">
+    <div class="comments-header">
+      <h2>Comments</h2>
+      <button onclick="closeComments()">✕</button>
+    </div>
+    <div id="commentsList" class="comments-list"></div>
+    <div class="comment-input">
+      <input id="commentInput" type="text" maxlength="200" placeholder="Add a comment...">
+      <button onclick="addComment()">Post</button>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
