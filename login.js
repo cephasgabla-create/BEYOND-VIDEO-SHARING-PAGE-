@@ -1,0 +1,1 @@
+document.getElementById("loginForm").onsubmit=function(e){e.preventDefault();localStorage.setItem("beyondLoggedIn","true");localStorage.setItem("beyondEmail",document.getElementById("email").value);location.href="index.html"}
