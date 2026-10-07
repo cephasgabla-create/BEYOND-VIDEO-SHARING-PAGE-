@@ -95,3 +95,60 @@ function toggleLiveCamera(btn){btn.textContent=btn.textContent.includes("On")?"�
 function muteLiveChat(btn){btn.textContent=btn.textContent.includes("On")?"🚫 Chat Off":"💬 Chat On";document.getElementById("liveChatInput").disabled=btn.textContent.includes("Off")}
 function shareLive(){if(navigator.share)navigator.share({title:"Beyond Live",text:"Join my Beyond live room!"}).catch(()=>{});else alert("Live link copied!")}
 function endLive(){document.getElementById("liveStatus").textContent="Live ended by the creator.";clearInterval(liveTimer)}
+
+async function loadDatabaseFeed(){
+ const db=window.beyondDB||initBeyondDatabase();
+ if(!db)return;
+ const feed=document.getElementById("feed");
+ if(!feed)return;
+ const {data,error}=await db.from("videos").select("id,user_id,video_url,caption,likes_count,created_at,profiles(username,display_name,avatar_url)").order("created_at",{ascending:false}).limit(30);
+ if(error){console.error("Beyond feed database error:",error);return;}
+ const existing=new Set([...feed.querySelectorAll(".video-card")].map(x=>x.dataset.dbVideoId).filter(Boolean));
+ (data||[]).reverse().forEach(v=>{
+   if(existing.has(String(v.id)))return;
+   const card=document.createElement("section");
+   card.className="video-card";
+   card.dataset.dbVideoId=String(v.id);
+   card.dataset.postId="db-"+v.id;
+   const creator=v.profiles?.username||"Beyond Creator";
+   const caption=v.caption||"";
+   card.innerHTML=`
+    <div class="video-wrap">
+      <video class="video" src="${escapeBeyondAttribute(v.video_url)}" loop playsinline preload="metadata"></video>
+      <div class="video-gradient"></div>
+      <div class="video-meta">
+        <div class="creator-row"><div class="creator-avatar">${escapeBeyondText(creator.charAt(0).toUpperCase())}</div><div><strong>@${escapeBeyondText(creator)}</strong><p>${escapeBeyondText(caption)}</p></div></div>
+      </div>
+      <div class="video-actions">
+        <button class="like-button" onclick="likeDatabaseVideo(this,${v.id})">❤️ <span>${Number(v.likes_count||0)}</span></button>
+        <button onclick="openComments()">💬 <span>Comment</span></button>
+        <button onclick="shareVideo()">↗️ <span>Share</span></button>
+        <button onclick="saveVideo(this)">🔖 <span>Save</span></button>
+      </div>
+    </div>`;
+   feed.prepend(card);
+ });
+ activateVideoObserver();
+}
+function escapeBeyondText(v){const d=document.createElement("div");d.textContent=String(v??"");return d.innerHTML}
+function escapeBeyondAttribute(v){return String(v??"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+async function likeDatabaseVideo(button,videoId){
+ const db=window.beyondDB||initBeyondDatabase();
+ if(!db)return;
+ const {data:{user}}=await db.auth.getUser();
+ if(!user){location.href="login.html";return}
+ const {data:existing}=await db.from("likes").select("video_id").eq("user_id",user.id).eq("video_id",videoId).maybeSingle();
+ const count=button.querySelector("span");
+ if(existing){
+   await db.from("likes").delete().eq("user_id",user.id).eq("video_id",videoId);
+   const n=Math.max(0,Number(count.textContent||0)-1);count.textContent=n;
+   await db.from("videos").update({likes_count:n}).eq("id",videoId);
+   button.classList.remove("liked");
+ }else{
+   await db.from("likes").insert({user_id:user.id,video_id:videoId});
+   const n=Number(count.textContent||0)+1;count.textContent=n;
+   await db.from("videos").update({likes_count:n}).eq("id",videoId);
+   button.classList.add("liked");
+ }
+}
+document.addEventListener("DOMContentLoaded",()=>{setTimeout(loadDatabaseFeed,250)});
