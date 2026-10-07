@@ -14,7 +14,7 @@
       <button onclick="showFollowing()">Following</button>
     </div>
     <div class="top-actions">
-      <button class="search-btn" onclick="openSearch()">🔍</button><button onclick="toggleTheme()" title="Theme">◐</button><button onclick="openMore()" title="More">☰</button>
+      <button class="search-btn" onclick="openSearch()">🔍</button><button onclick="openMessages()" title="Messages">💬</button><button onclick="toggleTheme()" title="Theme">◐</button><button onclick="openMore()" title="More">☰</button>
       <button class="login-btn" onclick="openLogin()">Log in</button>
     </div>
   </header>
@@ -34,7 +34,7 @@
         <button onclick="likeVideo(this)">❤️ <span>0</span></button>
         <button onclick="commentVideo('demo-1')">💬 <span>0</span></button>
         <button onclick="shareVideo()">↗️ <span>Share</span></button>
-        <button onclick="openProfile()">👤 <span>Profile</span></button>
+        <button onclick="openProfile()">👤 <span>Profile</span></button><button onclick="openMessages()">💬 <span>Messages</span></button>
       </div>
     </section>
 
@@ -91,5 +91,20 @@
   <div id="moreOverlay" class="more-overlay" onclick="closeMore()"></div><aside id="morePanel" class="more-panel"><div class="more-head"><h2>Beyond Hub</h2><button onclick="closeMore()">✕</button></div><button onclick="openSearch()">🔎 Discover creators</button><button onclick="showSaved()">🔖 Saved posts</button><button onclick="showHistory()">🕘 Watch history</button><button onclick="toggleTheme();closeMore()">◐ Switch theme</button><button onclick="openSettings()">⚙️ Settings</button><div class="hub-stats"><strong>Beyond</strong><span>Connect • Create • Discover</span></div></aside>
 
   <script src="script.js"></script>
+<div id="messagesOverlay" class="messages-overlay" onclick="closeMessages()"></div>
+<section id="messagesPanel" class="messages-panel">
+  <div class="messages-head"><div><span class="eyebrow">BEYOND CHAT</span><h2>Messages</h2></div><button onclick="closeMessages()">✕</button></div>
+  <div class="message-tabs"><button class="active">Chats</button><button>Requests <span id="requestCount">0</span></button></div>
+  <div class="message-search"><input id="messageSearch" placeholder="Search people..." oninput="filterPeople()"></div>
+  <div id="peopleList" class="people-list">
+    <div class="person-row" data-name="BeyondCreator" onclick="openChat('BeyondCreator')"><div class="person-avatar">B</div><div class="person-main"><strong>@BeyondCreator</strong><span>Online now</span></div><b class="online-dot"></b></div>
+    <div class="person-row" data-name="Beyond" onclick="openChat('Beyond')"><div class="person-avatar">B</div><div class="person-main"><strong>@Beyond</strong><span>Active recently</span></div></div>
+  </div>
+  <div id="chatView" class="chat-view">
+    <div class="chat-head"><button onclick="backToPeople()">←</button><div class="person-avatar" id="chatAvatar">B</div><div><strong id="chatName">@Beyond</strong><span>Online</span></div></div>
+    <div id="chatMessages" class="chat-messages"><div class="chat-bubble received">Welcome to Beyond! 👋</div></div>
+    <div class="chat-compose"><input id="chatInput" maxlength="500" placeholder="Write a message..." onkeydown="if(event.key==='Enter')sendMessage()"><button onclick="sendMessage()">➤</button></div>
+  </div>
+</section>
 </body>
 </html>
