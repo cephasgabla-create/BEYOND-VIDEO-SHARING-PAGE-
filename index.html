@@ -14,7 +14,7 @@
       <button onclick="showFollowing()">Following</button>
     </div>
     <div class="top-actions">
-      <button class="search-btn" onclick="openSearch()">🔍</button>
+      <button class="search-btn" onclick="openSearch()">🔍</button><button onclick="toggleTheme()" title="Theme">◐</button><button onclick="openMore()" title="More">☰</button>
       <button class="login-btn" onclick="openLogin()">Log in</button>
     </div>
   </header>
@@ -76,6 +76,8 @@
       <button onclick="addComment()">Post</button>
     </div>
   </div>
+
+  <div id="moreOverlay" class="more-overlay" onclick="closeMore()"></div><aside id="morePanel" class="more-panel"><div class="more-head"><h2>Beyond Hub</h2><button onclick="closeMore()">✕</button></div><button onclick="openSearch()">🔎 Discover creators</button><button onclick="showSaved()">🔖 Saved posts</button><button onclick="showHistory()">🕘 Watch history</button><button onclick="toggleTheme();closeMore()">◐ Switch theme</button><button onclick="openSettings()">⚙️ Settings</button><div class="hub-stats"><strong>Beyond</strong><span>Connect • Create • Discover</span></div></aside>
 
   <script src="script.js"></script>
 </body>
