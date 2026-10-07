@@ -152,3 +152,30 @@ async function likeDatabaseVideo(button,videoId){
  }
 }
 document.addEventListener("DOMContentLoaded",()=>{setTimeout(loadDatabaseFeed,250)});
+
+async function enableBeyondRealtime(){
+ const db=window.beyondDB||initBeyondDatabase();
+ if(!db)return;
+ db.channel("beyond-live-feed")
+ .on("postgres_changes",{event:"INSERT",schema:"public",table:"videos"},payload=>{
+   loadDatabaseFeed();
+ })
+ .on("postgres_changes",{event:"UPDATE",schema:"public",table:"videos"},payload=>{
+   const card=document.querySelector('[data-db-video-id="'+payload.new.id+'"]');
+   const like=card?.querySelector(".like-button span");
+   if(like)like.textContent=payload.new.likes_count||0;
+ })
+ .subscribe();
+ db.channel("beyond-auth").on("system","*",(payload)=>{}).subscribe();
+}
+function showFeedLoading(){
+ const feed=document.getElementById("feed"); if(!feed||document.getElementById("feedLoading"))return;
+ const el=document.createElement("div");el.id="feedLoading";el.className="feed-loading";
+ el.innerHTML="<div class='loading-spinner'></div><span>Loading Beyond...</span>";
+ feed.prepend(el);
+ setTimeout(()=>el.remove(),1500);
+}
+document.addEventListener("DOMContentLoaded",()=>{
+ showFeedLoading();
+ setTimeout(enableBeyondRealtime,700);
+});
