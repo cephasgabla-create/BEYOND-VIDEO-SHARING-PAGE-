@@ -58,3 +58,6 @@ async function publishVideo(){
   t.oncomplete=()=>location.href="index.html";
   t.onerror=()=>alert("Could not publish the video. Please try again.");
 }
+function openGoLive(){document.getElementById("goLiveModal")?.classList.add("show")}
+function closeGoLive(){document.getElementById("goLiveModal")?.classList.remove("show")}
+function startConfiguredLive(){const title=document.getElementById("liveTitleInput").value.trim()||"Beyond Live";const category=document.getElementById("liveCategory").value;const chat=document.getElementById("liveChatEnabled").checked;localStorage.setItem("beyondLiveConfig",JSON.stringify({title,category,chat,startedAt:new Date().toISOString(),active:true}));closeGoLive();window.location.href="index.html?live=1"}
