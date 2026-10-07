@@ -2,7 +2,7 @@ let currentPostId=null;
 
 document.addEventListener("DOMContentLoaded",()=>{loadBeyondVideos();activateVideoObserver();updateAllFollowButtons()});
 
-function openDatabase(){return new Promise((resolve,reject)=>{const request=indexedDB.open("BeyondDatabase",1);request.onupgradeneeded=e=>{const db=e.target.result;if(!db.objectStoreNames.contains("videos"))db.createObjectStore("videos",{keyPath:"id",autoIncrement:true})};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)})}
+function openDatabase(){return new Promise((resolve,reject)=>{const request=indexedDB.open("BeyondDatabase",2);request.onupgradeneeded=e=>{const db=e.target.result;if(!db.objectStoreNames.contains("videos"))db.createObjectStore("videos",{keyPath:"id",autoIncrement:true});if(!db.objectStoreNames.contains("comments"))db.createObjectStore("comments",{keyPath:"id",autoIncrement:true})};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)})}
 
 async function loadBeyondVideos(){try{const db=await openDatabase();const tx=db.transaction(["videos"],"readonly");const req=tx.objectStore("videos").getAll();req.onsuccess=()=>{req.result.reverse().forEach(createVideoCard);activateVideoObserver();updateAllFollowButtons()}}catch(e){console.error(e)}}
 
