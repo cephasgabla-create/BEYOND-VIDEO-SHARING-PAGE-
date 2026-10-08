@@ -3,6 +3,7 @@ const selectedIds=new Set();
 let currentPage=1;
 const PAGE_SIZE=8;
 let realtimeChannel=null;
+const localObjectUrls=new Map();
 
 document.addEventListener("DOMContentLoaded",()=>{
   document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
@@ -42,15 +43,15 @@ async function loadContent(){
           db.from("comments").select("video_id")
         ]);
         if(vError) throw vError;
-        if(lError) throw lError;
-        if(cError) throw cError;
+        // Likes/comments are supplementary. If their tables are protected or unavailable,
+        // keep the video list working and use the counters stored on videos.
         const likeMap={},commentMap={};
         (likes||[]).forEach(x=>likeMap[x.video_id]=(likeMap[x.video_id]||0)+1);
         (comments||[]).forEach(x=>commentMap[x.video_id]=(commentMap[x.video_id]||0)+1);
         contentItems=(videos||[]).map(v=>({
           id:v.id,caption:v.caption||"",hashtags:v.hashtags||"",status:v.status||"published",
           views:Number(v.views_count||0),likeCount:likeMap[v.id]||Number(v.likes_count||0),
-          commentCount:commentMap[v.id]||0,createdAt:v.created_at,videoUrl:v.video_url,visibility:v.visibility||"public",commentsEnabled:v.comments_enabled!==false
+          commentCount:commentMap[v.id]||Number(v.comments_count||0),createdAt:v.created_at,videoUrl:v.video_url,visibility:v.visibility||"public",commentsEnabled:v.comments_enabled!==false
         }));
         updateStats();
         render();
@@ -131,7 +132,11 @@ function render(){
     const check=document.createElement("input");check.type="checkbox";check.className="row-select";check.checked=selectedIds.has(String(v.id));check.setAttribute("aria-label","Select video");
     check.onchange=()=>{check.checked?selectedIds.add(String(v.id)):selectedIds.delete(String(v.id));row.classList.toggle("selected",check.checked);updateBulkControls()};
     const thumb=document.createElement("video");thumb.className="thumb";thumb.muted=true;thumb.preload="metadata";thumb.playsInline=true;
-    if(v.videoUrl)thumb.src=v.videoUrl;else if(v.video)thumb.src=URL.createObjectURL(v.video);
+    if(v.videoUrl) thumb.src=v.videoUrl;
+    else if(v.video){
+      if(!localObjectUrls.has(String(v.id))) localObjectUrls.set(String(v.id),URL.createObjectURL(v.video));
+      thumb.src=localObjectUrls.get(String(v.id));
+    }
     const info=document.createElement("div");info.className="content-info";
     const h=document.createElement("h3");h.textContent=v.caption||"Untitled Beyond video";
     const badge=document.createElement("span");badge.className="status "+(v.status==="draft"?"draft":"published");badge.textContent=v.status;h.appendChild(badge);
@@ -208,7 +213,9 @@ function openEditor(id){
   document.getElementById("editVisibility").value=v.visibility||"public";
   document.getElementById("editCommentsEnabled").checked=v.commentsEnabled!==false;
   document.getElementById("editStatus").value=v.status||"published";
-  const video=document.getElementById("editVideoPreview");video.src=v.videoUrl||"";video.load();
+  const video=document.getElementById("editVideoPreview");
+  const src=v.videoUrl||(v.video?(localObjectUrls.get(String(v.id))||(localObjectUrls.set(String(v.id),URL.createObjectURL(v.video)),localObjectUrls.get(String(v.id))):"");
+  video.src=src;video.load();
   updateCaptionCount();document.getElementById("editModal").classList.add("show");
 }
 function closeEditor(){
@@ -232,4 +239,4 @@ async function saveEditor(forcedStatus){
 document.getElementById("editCaption")?.addEventListener("input",updateCaptionCount);
 document.getElementById("editModal")?.addEventListener("click",e=>{if(e.target.id==="editModal")closeEditor()});
 
-function openPreview(id){const v=findContentItem(id);if(!v)return;const m=document.getElementById("previewModal"),x=document.getElementById("previewVideo");document.getElementById("previewTitle").textContent=v.caption||"Untitled Beyond video";document.getElementById("previewTags").textContent=v.hashtags||"No hashtags";document.getElementById("previewStats").textContent="Views "+v.views+" • Likes "+v.likeCount+" • Comments "+v.commentCount+" • "+(v.visibility||"public");x.src=v.videoUrl||"";x.load();m.classList.add("show")}function closePreview(){const m=document.getElementById("previewModal"),x=document.getElementById("previewVideo");m.classList.remove("show");x.pause();x.removeAttribute("src");x.load()}
+function openPreview(id){const v=findContentItem(id);if(!v)return;const m=document.getElementById("previewModal"),x=document.getElementById("previewVideo");document.getElementById("previewTitle").textContent=v.caption||"Untitled Beyond video";document.getElementById("previewTags").textContent=v.hashtags||"No hashtags";document.getElementById("previewStats").textContent="Views "+v.views+" • Likes "+v.likeCount+" • Comments "+v.commentCount+" • "+(v.visibility||"public");const src=v.videoUrl||(v.video?(localObjectUrls.get(String(v.id))||(localObjectUrls.set(String(v.id),URL.createObjectURL(v.video)),localObjectUrls.get(String(v.id))):"");x.src=src;x.load();m.classList.add("show")}function closePreview(){const m=document.getElementById("previewModal"),x=document.getElementById("previewVideo");m.classList.remove("show");x.pause();x.removeAttribute("src");x.load()}
