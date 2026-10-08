@@ -231,3 +231,10 @@ button{cursor:pointer}
   #feed{padding-bottom:62px}
   .video-card{height:calc(100vh - 64px);min-height:520px}
 }
+
+.beyond-feed-tabs{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:120;display:flex;gap:4px;padding:4px;border-radius:18px;background:rgba(10,10,12,.72);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(18px)}
+.beyond-feed-tabs button{border:0;background:transparent;color:#aaa;padding:8px 18px;border-radius:14px;font-weight:800;font-size:13px;cursor:pointer}
+.beyond-feed-tabs button.active,.beyond-feed-tabs button:hover{background:#fff;color:#111}
+@media(min-width:1100px){.beyond-feed-tabs{top:15px}.video-card{max-width:680px}.video{border-radius:18px}.video-card{padding:0 8px;background:#000}.video-card:after{border-radius:18px}}
+@media(max-width:1099px){.beyond-feed-tabs{top:10px}.video-card{scroll-snap-align:center}}
+@media(max-width:600px){.beyond-feed-tabs{top:7px}.beyond-feed-tabs button{padding:7px 14px}.video-card{width:100%;height:calc(100vh - 58px);min-height:500px;border:0}.video-actions{right:10px}.video-info{left:16px;right:82px;bottom:24px}}
