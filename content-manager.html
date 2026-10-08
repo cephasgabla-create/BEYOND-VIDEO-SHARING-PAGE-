@@ -22,7 +22,7 @@
     <div class="tabs"><button class="active" data-filter="all">All</button><button data-filter="published">Published</button><button data-filter="draft">Drafts</button></div>
     <div class="tools"><input id="searchContent" placeholder="Search your videos..."><select id="sortContent"><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="likes">Most liked</option></select></div>
   </section>
-  <section id="contentList" class="content-list"></section>
+  <div class="bulk-bar"><label><input type="checkbox" id="selectAll"> Select page</label><span id="selectedCount">0 selected</span><button id="bulkPublish" disabled>Publish selected</button><button id="bulkDraft" disabled>Move to drafts</button><button id="bulkDelete" class="danger" disabled>Delete selected</button></div><section id="contentList" class="content-list"></section><nav class="pagination" aria-label="Content pages"><button id="prevPage" disabled>← Previous</button><span id="pageInfo">Page 1</span><button id="nextPage" disabled>Next →</button></nav>
   <div id="emptyState" class="empty"><div>🎬</div><h2>No content yet</h2><p>Upload your first Beyond video and manage it here.</p><button onclick="location.href='upload.html'">Upload video</button></div>
 </main>
 <div id="editModal" class="modal"><div class="modal-card"><button class="close" onclick="closeEditor()">✕</button><span class="eyebrow">EDIT VIDEO</span><h2>Edit content</h2><input id="editCaption" maxlength="150" placeholder="Caption"><input id="editHashtags" maxlength="250" placeholder="#Beyond #ForYou"><div class="modal-actions"><button onclick="closeEditor()">Cancel</button><button class="primary" onclick="saveEditor()">Save changes</button></div></div></div>
