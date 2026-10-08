@@ -57,6 +57,7 @@ async function loadConversations(){
 }
 async function openConversation(id){
   if(!id||id===currentUser.id)return;
+  if(await isBeyondUserBlocked(id)){setStatus("This conversation is unavailable because the account is blocked.");return;}
   currentOtherId=id;
   const p=await loadProfileForUser(id);
   $("chatHeader").innerHTML="<div><strong>"+esc(profileName(p))+"</strong><span id=\"chatPresence\">○ Offline</span><span id=\"chatTyping\"></span></div>";
