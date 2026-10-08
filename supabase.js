@@ -139,3 +139,74 @@ async function updateLiveViewerCount(roomId,delta){
   if(error)throw error;
   return data;
 }
+
+
+// Database connection diagnostics used by Beyond setup pages.
+function beyondDatabaseConfigured(){
+  return Boolean(
+    BEYOND_SUPABASE_URL &&
+    !BEYOND_SUPABASE_URL.startsWith("YOUR_") &&
+    BEYOND_SUPABASE_ANON_KEY &&
+    !BEYOND_SUPABASE_ANON_KEY.startsWith("YOUR_")
+  );
+}
+
+async function getBeyondDatabaseStatus(){
+  const db=beyondDB||initBeyondDatabase();
+  if(!db) return {configured:false,connected:false};
+  const {data,error}=await db.from("profiles").select("id").limit(1);
+  return {configured:true,connected:!error,error:error||null,data};
+}
+
+async function getBeyondVideos(options={}){
+  const db=beyondDB||initBeyondDatabase();
+  if(!db) return [];
+  const limit=Number(options.limit)||30;
+  let query=db.from("videos")
+    .select("id,user_id,video_url,caption,hashtags,status,views_count,likes_count,created_at,profiles(username,display_name,avatar_url)")
+    .eq("status","published")
+    .order("created_at",{ascending:false})
+    .limit(limit);
+  if(options.userId) query=query.eq("user_id",options.userId);
+  const {data,error}=await query;
+  if(error) throw error;
+  return data||[];
+}
+
+async function createBeyondPost(content){
+  const db=beyondDB||initBeyondDatabase();
+  const user=await getCurrentBeyondUser();
+  if(!db||!user) throw new Error("Please sign in first.");
+  if(!String(content||"").trim()) throw new Error("Post content is required.");
+  const {data,error}=await db.from("posts")
+    .insert({user_id:user.id,content:String(content).trim()})
+    .select().single();
+  if(error) throw error;
+  return data;
+}
+
+async function sendBeyondMessage(receiverId,content){
+  const db=beyondDB||initBeyondDatabase();
+  const user=await getCurrentBeyondUser();
+  if(!db||!user) throw new Error("Please sign in first.");
+  if(!receiverId) throw new Error("A receiver is required.");
+  if(!String(content||"").trim()) throw new Error("Message content is required.");
+  const {data,error}=await db.from("messages")
+    .insert({sender_id:user.id,receiver_id:receiverId,content:String(content).trim()})
+    .select().single();
+  if(error) throw error;
+  return data;
+}
+
+async function markBeyondMessageRead(messageId){
+  const db=beyondDB||initBeyondDatabase();
+  const user=await getCurrentBeyondUser();
+  if(!db||!user) throw new Error("Please sign in first.");
+  const {data,error}=await db.from("messages")
+    .update({read:true})
+    .eq("id",messageId)
+    .eq("receiver_id",user.id)
+    .select().single();
+  if(error) throw error;
+  return data;
+}
