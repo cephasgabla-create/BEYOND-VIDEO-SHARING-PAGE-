@@ -67,7 +67,7 @@ async function loadVideos(){
 
 function openDB(){
   return new Promise((resolve,reject)=>{
-    const r=indexedDB.open("BeyondDatabase",3);
+    const r=indexedDB.open("BeyondDatabase",4);
     r.onupgradeneeded=e=>{
       const db=e.target.result;
       if(!db.objectStoreNames.contains("videos")) db.createObjectStore("videos",{keyPath:"id",autoIncrement:true});
