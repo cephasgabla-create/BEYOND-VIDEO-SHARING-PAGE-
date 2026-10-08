@@ -813,3 +813,11 @@ document.addEventListener("DOMContentLoaded",()=>{
   const observer=new MutationObserver(()=>feed.querySelectorAll(".video-card").forEach(beyondRailBindCard));
   observer.observe(feed,{childList:true});
 });
+
+/* Keep autoplay/snap behavior active as Supabase adds videos dynamically. */
+(function(){
+ const feed=document.getElementById("feed");if(!feed)return;
+ const sync=()=>{try{activateVideoObserver()}catch(error){console.warn("Beyond video observer refresh failed:",error)}};
+ new MutationObserver(sync).observe(feed,{childList:true,subtree:true});
+ sync();
+})();
