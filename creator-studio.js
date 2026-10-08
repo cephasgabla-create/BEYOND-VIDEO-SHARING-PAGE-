@@ -54,7 +54,13 @@ function subscribeCreatorRealtime(client,userId,videoIds){
     .on("postgres_changes",{event:"*",schema:"public",table:"comments"},payload=>{
       const id=payload.new?.video_id||payload.old?.video_id;
       if(videoIds.includes(id))load();
-    })
-    .subscribe();
-  window.beyondCreatorRealtimeChannel=channel;
+    });
+  channel.subscribe(status=>{
+    if(status==="SUBSCRIBED"){window.beyondCreatorRealtimeChannel=channel;return;}
+    if(status==="CHANNEL_ERROR"||status==="TIMED_OUT"||status==="CLOSED"){
+      if(window.beyondCreatorRealtimeChannel===channel)window.beyondCreatorRealtimeChannel=null;
+      try{client.removeChannel(channel)}catch(e){console.warn("Beyond Creator Studio realtime cleanup:",e)}
+      if(document.visibilityState!=="hidden")setTimeout(()=>subscribeCreatorRealtime(client,userId,videoIds),5000);
+    }
+  });
 }
