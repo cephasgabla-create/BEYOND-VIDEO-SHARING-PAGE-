@@ -566,3 +566,127 @@ $$;
 
 grant execute on function public.get_beyond_for_you_feed(integer) to anon, authenticated;
 
+
+
+-- Beyond Discover / Trending ranking.
+-- Server-side ranking keeps Discover consistent across browsers and lets the
+-- database combine views, likes, comments, followers and freshness.
+create or replace function public.get_beyond_discover(p_limit integer default 20)
+returns jsonb
+language sql
+security definer
+set search_path = public
+as $$
+with published as (
+  select v.id, v.user_id, v.video_url, v.caption, v.hashtags,
+         coalesce(v.views_count,0)::numeric as views_count,
+         coalesce(v.likes_count,0)::numeric as likes_count,
+         v.created_at,
+         coalesce(c.comments_count,0)::numeric as comments_count,
+         coalesce(f.followers_count,0)::numeric as followers_count
+  from public.videos v
+  left join (
+    select video_id, count(*)::numeric comments_count
+    from public.comments
+    group by video_id
+  ) c on c.video_id = v.id
+  left join (
+    select following_id, count(*)::numeric followers_count
+    from public.follows
+    group by following_id
+  ) f on f.following_id = v.user_id
+  where v.status = 'published'
+    and coalesce(v.visibility,'public') = 'public'
+),
+scored as (
+  select p.*,
+    (
+      least(35, ln(1+p.views_count)*4)
+      + least(40, ln(1+p.likes_count)*7)
+      + least(35, ln(1+p.comments_count)*9)
+      + least(20, ln(1+p.followers_count)*3)
+      + greatest(0, 30 - extract(epoch from (now()-p.created_at))/3600*1.25)
+    )::numeric as trend_score
+  from published p
+),
+video_rows as (
+  select jsonb_agg(
+    jsonb_build_object(
+      'id', s.id,
+      'user_id', s.user_id,
+      'video_url', s.video_url,
+      'caption', s.caption,
+      'hashtags', s.hashtags,
+      'views_count', s.views_count,
+      'likes_count', s.likes_count,
+      'comments_count', s.comments_count,
+      'created_at', s.created_at,
+      'trend_score', round(s.trend_score,2),
+      'username', p.username,
+      'display_name', p.display_name,
+      'avatar_url', p.avatar_url
+    ) order by s.trend_score desc, s.created_at desc
+  ) as rows
+  from (select * from scored order by trend_score desc, created_at desc limit greatest(1,least(coalesce(p_limit,20),50))) s
+  left join public.profiles p on p.id=s.user_id
+),
+tag_rows as (
+  select jsonb_agg(
+    jsonb_build_object('tag',tag,'videos',video_count,'score',round(tag_score,2))
+    order by tag_score desc, video_count desc, tag
+  ) as rows
+  from (
+    select lower(regexp_replace(trim(tag),'^#+','')) as tag,
+           count(*)::numeric as video_count,
+           sum(
+             least(35, ln(1+s.views_count)*4)
+             + least(40, ln(1+s.likes_count)*7)
+             + least(35, ln(1+s.comments_count)*9)
+             + greatest(0, 30 - extract(epoch from (now()-s.created_at))/3600*1.25)
+           )::numeric as tag_score
+    from scored s
+    cross join lateral regexp_split_to_table(coalesce(s.hashtags,''),'[[:space:],]+') tag
+    where trim(tag) <> ''
+    group by lower(regexp_replace(trim(tag),'^#+',''))
+    order by tag_score desc
+    limit 20
+  ) t
+),
+creator_rows as (
+  select jsonb_agg(
+    jsonb_build_object(
+      'user_id',x.user_id,
+      'username',p.username,
+      'display_name',p.display_name,
+      'avatar_url',p.avatar_url,
+      'videos',x.video_count,
+      'followers',x.followers_count,
+      'engagement',round(x.engagement,2)
+    ) order by x.creator_score desc, x.video_count desc
+  ) as rows
+  from (
+    select s.user_id,
+           count(*)::numeric video_count,
+           max(s.followers_count)::numeric followers_count,
+           sum(s.likes_count + s.comments_count)::numeric engagement,
+           (
+             least(35,ln(1+max(s.followers_count))*7)
+             + least(35,ln(1+sum(s.likes_count+s.comments_count))*6)
+             + least(25,count(*)*4)
+             + greatest(0,20-extract(epoch from (now()-max(s.created_at)))/86400*2)
+           )::numeric creator_score
+    from scored s
+    group by s.user_id
+    order by creator_score desc
+    limit 12
+  ) x
+  left join public.profiles p on p.id=x.user_id
+)
+select jsonb_build_object(
+  'videos', coalesce((select rows from video_rows),'[]'::jsonb),
+  'hashtags', coalesce((select rows from tag_rows),'[]'::jsonb),
+  'creators', coalesce((select rows from creator_rows),'[]'::jsonb)
+);
+$$;
+
+grant execute on function public.get_beyond_discover(integer) to anon, authenticated;
