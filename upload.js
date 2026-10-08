@@ -2,10 +2,23 @@ const input=document.getElementById("videoInput");
 const preview=document.getElementById("preview");
 let file=null;
 
-if(localStorage.getItem("beyondLoggedIn")!=="true"){
+async function requireBeyondUploadUser(){
+  try{
+    const client=window.beyondDB||initBeyondDatabase();
+    if(client){
+      const user=await getCurrentBeyondUser();
+      if(user)return user;
+    }
+  }catch(error){
+    console.warn("Supabase auth check unavailable:",error);
+  }
+  if(localStorage.getItem("beyondLoggedIn")==="true")return null;
   alert("Please log in to upload a video.");
   location.href="login.html";
+  return null;
 }
+
+requireBeyondUploadUser();
 
 input.onchange=function(){
   file=input.files[0];
@@ -27,9 +40,8 @@ function db(){
 }
 
 async function publishVideo(){
-  if(localStorage.getItem("beyondLoggedIn")!=="true"){
-    location.href="login.html"; return;
-  }
+  const authUser=await requireBeyondUploadUser();
+  if(!authUser && localStorage.getItem("beyondLoggedIn")!=="true")return;
   if(!file){alert("Choose a video first");return;}
 
   const caption=document.getElementById("caption").value.trim();
