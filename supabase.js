@@ -104,3 +104,29 @@ async function setBeyondFollow(targetUserId,shouldFollow){
   }
   return getBeyondFollowStatsByUserId(targetUserId);
 }
+
+
+async function getBeyondOwnProfile(){
+  const db=beyondDB||initBeyondDatabase();
+  const user=await getCurrentBeyondUser();
+  if(!db||!user)return null;
+  const {data,error}=await db.from("profiles").select("id,username,display_name,bio,avatar_url").eq("id",user.id).maybeSingle();
+  if(error) throw error;
+  return data;
+}
+
+async function updateBeyondOwnProfile(fields){
+  const db=beyondDB||initBeyondDatabase();
+  const user=await getCurrentBeyondUser();
+  if(!db||!user) throw new Error("Supabase authentication is required.");
+  const payload={
+    id:user.id,
+    username:fields.username,
+    display_name:fields.display_name ?? fields.username,
+    bio:fields.bio ?? "",
+    avatar_url:fields.avatar_url ?? null
+  };
+  const {data,error}=await db.from("profiles").upsert(payload,{onConflict:"id"}).select().single();
+  if(error) throw error;
+  return data;
+}
