@@ -1,8 +1,10 @@
-let videos=[];let likes=[];let comments=[];let range=7;let analyticsChannel=null;
+let videos=[];let likes=[];let comments=[];let range=7;let analyticsChannel=null;let analyticsTimer=null;let analyticsLoading=false;
 document.addEventListener("DOMContentLoaded",loadAnalytics);
 async function db(){return new Promise((ok,no)=>{const r=indexedDB.open("BeyondDatabase",4);r.onupgradeneeded=e=>{const d=e.target.result;if(!d.objectStoreNames.contains("videos"))d.createObjectStore("videos",{keyPath:"id",autoIncrement:true});if(!d.objectStoreNames.contains("comments"))d.createObjectStore("comments",{keyPath:"id",autoIncrement:true});if(!d.objectStoreNames.contains("likes"))d.createObjectStore("likes",{keyPath:"key"});};r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})}
 function all(d,n){return new Promise((ok,no)=>{const r=d.transaction(n,"readonly").objectStore(n).getAll();r.onsuccess=()=>ok(r.result||[]);r.onerror=()=>no(r.error)})}
 async function loadAnalytics(){
+  if(analyticsLoading)return;
+  analyticsLoading=true;
   try{
     const client=window.beyondDB||(typeof initBeyondDatabase==="function"?initBeyondDatabase():null);
     if(client){
@@ -35,10 +37,10 @@ async function loadAnalytics(){
         render();
         if(analyticsChannel){try{client.removeChannel(analyticsChannel)}catch(e){console.warn("Beyond analytics realtime cleanup:",e)}analyticsChannel=null;}
         const channel=client.channel("beyond-analytics-"+user.id)
-          .on("postgres_changes",{event:"*",schema:"public",table:"videos",filter:"user_id=eq."+user.id},()=>loadAnalytics())
-          .on("postgres_changes",{event:"*",schema:"public",table:"follows",filter:"following_id=eq."+user.id},()=>loadAnalytics())
-          .on("postgres_changes",{event:"*",schema:"public",table:"likes"},()=>loadAnalytics())
-          .on("postgres_changes",{event:"*",schema:"public",table:"comments"},()=>loadAnalytics());
+          .on("postgres_changes",{event:"*",schema:"public",table:"videos",filter:"user_id=eq."+user.id},()=>scheduleAnalyticsReload())
+          .on("postgres_changes",{event:"*",schema:"public",table:"follows",filter:"following_id=eq."+user.id},()=>scheduleAnalyticsReload())
+          .on("postgres_changes",{event:"*",schema:"public",table:"likes"},()=>scheduleAnalyticsReload())
+          .on("postgres_changes",{event:"*",schema:"public",table:"comments"},()=>scheduleAnalyticsReload());
         channel.subscribe(status=>{
           if(status==="SUBSCRIBED"){analyticsChannel=channel;return;}
           if(status==="CHANNEL_ERROR"||status==="TIMED_OUT"||status==="CLOSED"){
@@ -52,7 +54,9 @@ async function loadAnalytics(){
     }
   }catch(error){console.warn("Beyond Supabase analytics unavailable:",error)}
   const d=await db();const u=localStorage.getItem("beyondUsername");const allVideos=await all(d,"videos");videos=allVideos.filter(v=>!u||v.username===u);likes=await all(d,"likes");comments=await all(d,"comments");videos.forEach(v=>{v.likeCount=likes.filter(x=>x.postId===v.id).length;v.commentCount=comments.filter(x=>x.postId===v.id).length;v.views=Number(localStorage.getItem("beyondViews_"+v.id)||0)});render();
+  analyticsLoading=false;
 }
+function scheduleAnalyticsReload(){if(analyticsTimer)return;analyticsTimer=setTimeout(()=>{analyticsTimer=null;loadAnalytics()},500)}
 function compact(n){return n>=1000000?(n/1000000).toFixed(1)+"M":n>=1000?(n/1000).toFixed(1)+"K":String(n)}
 function render(){const totalViews=videos.reduce((n,v)=>n+v.views,0),totalLikes=videos.reduce((n,v)=>n+v.likeCount,0),totalComments=videos.reduce((n,v)=>n+v.commentCount,0);const followers=Number.isFinite(window.beyondAnalyticsFollowers)?window.beyondAnalyticsFollowers:Number(localStorage.getItem("beyondFollowers")||0);views.textContent=compact(totalViews);likes.textContent=compact(totalLikes);comments.textContent=compact(totalComments);document.getElementById("followers").textContent=compact(followers);document.getElementById("viewsChange").textContent="Based on your videos";document.getElementById("likesChange").textContent="Total engagement";document.getElementById("commentsChange").textContent="Community activity";document.getElementById("followersChange").textContent="Current followers";avgViews.textContent=compact(videos.length?Math.round(totalViews/videos.length):0);avgLikes.textContent=compact(videos.length?Math.round(totalLikes/videos.length):0);engagementRate.textContent=(totalViews?((totalLikes+totalComments)/totalViews*100).toFixed(1):"0")+"%";published.textContent=videos.filter(v=>(v.status||"published")==="published").length;drawViews();drawEngagement();renderTop();}
 function dates(){const a=[];for(let i=range-1;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);a.push(d)}return a}
@@ -62,4 +66,13 @@ function drawEngagement(){const c=document.getElementById("engagementChart"),ctx
 function devicePixel(c,ctx){const d=window.devicePixelRatio||1;c.width=c.clientWidth*d;c.height=c.clientHeight*d;return d}
 function renderTop(){const box=document.getElementById("topVideos");const top=[...videos].sort((a,b)=>b.views-a.views).slice(0,5);box.innerHTML=top.length?top.map((v,i)=>'<div class="top-row"><span class="rank">#'+(i+1)+'</span><div><h3>'+escapeHTML(v.caption||"Untitled video")+'</h3><p>❤️ '+v.likeCount+' · 💬 '+v.commentCount+'</p></div><strong>👁 '+compact(v.views)+'</strong></div>').join(""):'<p style="color:#9097a5">Upload videos to see performance data.</p>'}
 function escapeHTML(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]))}
+document.getElementById("rangeBtn")?.addEventListener("click",()=>{
+  const options=[7,14,30];
+  const next=options[(options.indexOf(range)+1)%options.length];
+  range=next;
+  document.getElementById("rangeBtn").textContent="Last "+range+" days ▾";
+  document.getElementById("periodLabel").textContent="Last "+range+" days";
+  drawViews();
+});
+window.addEventListener("beforeunload",()=>{if(analyticsTimer)clearTimeout(analyticsTimer);if(analyticsChannel){try{analyticsChannel.unsubscribe()}catch(e){}}});
 window.addEventListener("resize",()=>{if(videos.length) {drawViews();drawEngagement()}});
