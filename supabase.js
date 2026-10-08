@@ -336,6 +336,17 @@ function subscribeBeyondMessages(userId,callback){
 }
 
 
+async function updateBeyondMessageBadge(selector="#beyondMessageBadge"){
+  const badge=document.querySelector(selector);
+  if(!badge)return 0;
+  try{const count=await getBeyondUnreadMessageCount();badge.textContent=count>99?"99+":String(count);badge.hidden=count<=0;return count}catch(e){badge.hidden=true;return 0}
+}
+
+function initBeyondMessageBadge(selector="#beyondMessageBadge"){
+  const start=async()=>{const db=beyondDB||initBeyondDatabase();if(!db)return;const user=await getCurrentBeyondUser();if(!user)return;await updateBeyondMessageBadge(selector);const ch=subscribeBeyondMessages(user.id,async()=>updateBeyondMessageBadge(selector));window.beyondMessageBadgeChannel=ch};
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",start,{once:true});else start();
+}
+
 function subscribeBeyondNotifications(userId,callback){
   const db=beyondDB||initBeyondDatabase();
   if(!db||!userId||typeof callback!=="function") return null;
