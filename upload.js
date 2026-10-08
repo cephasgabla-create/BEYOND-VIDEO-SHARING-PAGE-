@@ -14,11 +14,12 @@ input.onchange=function(){
 
 function db(){
   return new Promise((ok,no)=>{
-    const r=indexedDB.open("BeyondDatabase",2);
+    const r=indexedDB.open("BeyondDatabase",4);
     r.onupgradeneeded=e=>{
       const d=e.target.result;
       if(!d.objectStoreNames.contains("videos")) d.createObjectStore("videos",{keyPath:"id",autoIncrement:true});
       if(!d.objectStoreNames.contains("comments")) d.createObjectStore("comments",{keyPath:"id",autoIncrement:true});
+      if(!d.objectStoreNames.contains("likes")) d.createObjectStore("likes",{keyPath:"key"});
     };
     r.onsuccess=()=>ok(r.result);
     r.onerror=()=>no(r.error);
@@ -27,60 +28,101 @@ function db(){
 
 async function publishVideo(){
   if(localStorage.getItem("beyondLoggedIn")!=="true"){
-    location.href="login.html";
-    return;
+    location.href="login.html"; return;
   }
-  if(!file){
-    alert("Choose a video first");
-    return;
-  }
-
-  const username=localStorage.getItem("beyondUsername");
-  if(!username){
-    alert("Your Beyond account could not be found. Please log in again.");
-    location.href="login.html";
-    return;
-  }
+  if(!file){alert("Choose a video first");return;}
 
   const caption=document.getElementById("caption").value.trim();
   const hashtags=document.getElementById("hashtags").value.trim();
-  const d=await db();
-  const t=d.transaction("videos","readwrite");
 
-  t.objectStore("videos").add({
-    username,
+  // Use the real Supabase upload whenever the project is configured
+  // and the user has a Supabase Auth session.
+  try{
+    const supabaseDB=window.beyondDB||initBeyondDatabase();
+    if(supabaseDB){
+      const {data:{user}}=await supabaseDB.auth.getUser();
+      if(user){
+        const result=await uploadVideoToSupabase(file,caption,hashtags);
+        localStorage.setItem("beyondLastUploadedVideo",JSON.stringify(result));
+        alert("Video published to Beyond.");
+        location.href="index.html";
+        return;
+      }
+    }
+  }catch(error){
+    console.error("Supabase upload failed:",error);
+    alert("Supabase upload failed: "+error.message);
+    return;
+  }
+
+  // Local fallback keeps the project usable before Supabase Auth is configured.
+  const username=localStorage.getItem("beyondUsername");
+  if(!username){
+    alert("Your Beyond account could not be found. Please log in again.");
+    location.href="login.html"; return;
+  }
+  try{
+    const d=await db();
+    const t=d.transaction("videos","readwrite");
+    t.objectStore("videos").add({
+      username,caption,hashtags,video:file,status:"published",
+      createdAt:new Date().toISOString()
+    });
+    t.oncomplete=()=>location.href="index.html";
+    t.onerror=()=>alert("Could not publish the video. Please try again.");
+  }catch(error){alert("Could not publish the video: "+error.message)}
+}
+
+async function uploadVideoToSupabase(file,caption="",hashtags=""){
+  const dbClient=window.beyondDB||initBeyondDatabase();
+  if(!dbClient)throw new Error("Configure Supabase in supabase.js first.");
+  const {data:{user}}=await dbClient.auth.getUser();
+  if(!user)throw new Error("Please log in with Beyond Supabase Auth before uploading.");
+  if(!file.type.startsWith("video/"))throw new Error("Please choose a video file.");
+
+  const ext=(file.name.split(".").pop()||"mp4").toLowerCase();
+  const path=user.id+"/"+crypto.randomUUID()+"."+ext;
+
+  const {error:storageError}=await dbClient.storage.from("videos").upload(path,file,{
+    contentType:file.type,upsert:false
+  });
+  if(storageError)throw storageError;
+
+  const {data:publicData}=dbClient.storage.from("videos").getPublicUrl(path);
+  const videoUrl=publicData.publicUrl;
+
+  const {data:row,error:dbError}=await dbClient.from("videos").insert({
+    user_id:user.id,
+    video_url:videoUrl,
     caption,
     hashtags,
-    video:file,
-    createdAt:new Date().toISOString()
-  });
+    status:"published",
+    views_count:0,
+    likes_count:0
+  }).select().single();
 
-  t.oncomplete=()=>location.href="index.html";
-  t.onerror=()=>alert("Could not publish the video. Please try again.");
+  if(dbError){
+    await dbClient.storage.from("videos").remove([path]);
+    throw dbError;
+  }
+  return row;
 }
+
+async function uploadBeyondVideoWithDatabase(file,caption="",hashtags=""){
+  const result=await uploadVideoToSupabase(file,caption,hashtags);
+  localStorage.setItem("beyondLastUploadedVideo",JSON.stringify(result));
+  return result;
+}
+
 function openGoLive(){document.getElementById("goLiveModal")?.classList.add("show")}
 function closeGoLive(){document.getElementById("goLiveModal")?.classList.remove("show")}
-function startConfiguredLive(){const title=document.getElementById("liveTitleInput").value.trim()||"Beyond Live";const category=document.getElementById("liveCategory").value;const chat=document.getElementById("liveChatEnabled").checked;localStorage.setItem("beyondLiveConfig",JSON.stringify({title,category,chat,startedAt:new Date().toISOString(),active:true}));closeGoLive();window.location.href="index.html?live=1"}
-
-async function uploadVideoToSupabase(file,caption=""){
- const db=window.beyondDB||initBeyondDatabase();
- if(!db)throw new Error("Configure Supabase in supabase.js first.");
- const {data:{user}}=await db.auth.getUser();
- if(!user)throw new Error("Please log in before uploading.");
- if(!file.type.startsWith("video/"))throw new Error("Please choose a video file.");
- const ext=(file.name.split(".").pop()||"mp4").toLowerCase();
- const path=user.id+"/"+crypto.randomUUID()+"."+ext;
- const {error:storageError}=await db.storage.from("videos").upload(path,file,{contentType:file.type,upsert:false});
- if(storageError)throw storageError;
- const {data:publicData}=db.storage.from("videos").getPublicUrl(path);
- const videoUrl=publicData.publicUrl;
- const {data:row,error:dbError}=await db.from("videos").insert({user_id:user.id,video_url:videoUrl,caption}).select().single();
- if(dbError){await db.storage.from("videos").remove([path]);throw dbError;}
- return row;
-}
-
-async function uploadBeyondVideoWithDatabase(file,caption=""){
- const result=await uploadVideoToSupabase(file,caption);
- localStorage.setItem("beyondLastUploadedVideo",JSON.stringify(result));
- return result;
+function startConfiguredLive(){
+  const title=document.getElementById("liveTitleInput").value.trim()||"Beyond Live";
+  const category=document.getElementById("liveCategory").value;
+  const chat=document.getElementById("liveChatEnabled").checked;
+  localStorage.setItem("beyondLiveConfig",JSON.stringify({
+    title,category,chat,startedAt:new Date().toISOString(),active:true
+  }));
+  closeGoLive();
+  window.location.href="index.html?live=1";
 }
