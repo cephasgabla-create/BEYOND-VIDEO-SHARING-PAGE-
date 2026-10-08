@@ -91,9 +91,5 @@ async function showLikedVideos(){
   if(videoError){alert("Could not load liked videos.");return}
   renderProfileVideos(videos||[]);
 }
-async function logout(){
-  if(!confirm("Log out of Beyond?"))return;
-  try{const db=initBeyondDatabase();if(db)await db.auth.signOut()}catch(error){console.warn(error)}
-  localStorage.removeItem("beyondLoggedIn");localStorage.removeItem("beyondUsername");localStorage.removeItem("beyondEmail");sessionStorage.removeItem("beyondLoggedIn");location.href="index.html";
-}
+async function logout(){if(typeof beyondLogout==="function"){await beyondLogout();return}location.href="login.html"}
 loadProfile();
