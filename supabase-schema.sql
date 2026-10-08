@@ -298,3 +298,10 @@ exception when duplicate_object then null; end $$;
 do $$ begin
   alter publication supabase_realtime add table public.comments;
 exception when duplicate_object then null; end $$;
+
+-- Creator Settings synchronization table
+create table if not exists public.creator_settings (user_id uuid primary key references auth.users(id) on delete cascade, settings jsonb not null default '{}'::jsonb, updated_at timestamptz not null default now());
+alter table public.creator_settings enable row level security;
+create policy "creator_settings_owner_select" on public.creator_settings for select to authenticated using (user_id = auth.uid());
+create policy "creator_settings_owner_insert" on public.creator_settings for insert to authenticated with check (user_id = auth.uid());
+create policy "creator_settings_owner_update" on public.creator_settings for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
