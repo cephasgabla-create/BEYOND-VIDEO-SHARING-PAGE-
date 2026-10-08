@@ -375,3 +375,8 @@ begin
 end;
 $$;
 grant execute on function public.change_live_viewer_count(bigint, integer) to anon, authenticated;
+
+
+-- Persistent creator branding fields.
+alter table public.profiles add column if not exists banner_url text;
+alter table public.profiles add column if not exists accent_color text default '#ff2d55';
