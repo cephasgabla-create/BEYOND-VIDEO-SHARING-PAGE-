@@ -1,4 +1,4 @@
-let currentUser=null,currentOtherId=null,profiles=new Map(),messagesChannel=null,chatPresenceChannel=null,typingTimer=null;
+let currentUser=null,currentOtherId=null,profiles=new Map(),messagesChannel=null,chatPresenceChannel=null,typingTimer=null,currentRows=[];
 const $=id=>document.getElementById(id);
 function esc(v){const d=document.createElement("div");d.textContent=v??"";return d.innerHTML}
 function avatar(p){return p?.avatar_url||"data:image/svg+xml;charset=UTF-8,"+encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80'><rect width='100%' height='100%' fill='#ddd'/><text x='50%' y='55%' text-anchor='middle' font-size='30' fill='#777'>B</text></svg>")}
@@ -66,15 +66,14 @@ async function openConversation(id){
 }
 async function renderConversation(){
   try{
-    const rows=await getBeyondConversation(currentOtherId),box=$("messageList");
-    box.innerHTML=rows.length?rows.map((m,i)=>{
-      const mine=m.sender_id===currentUser.id;
-      const lastMine=mine&&!rows.slice(i+1).some(x=>x.sender_id===currentUser.id);
-      const receipt=mine&&lastMine?"<span class='read-receipt'>"+(m.read?"✓✓ Seen":"✓ Sent")+"</span>":"";
-      return "<div class='bubble "+(mine?"mine":"")+"'>"+esc(m.content)+"<time>"+new Date(m.created_at).toLocaleString()+receipt+"</time></div>";
-    }).join(""):"<div class='empty-state'>Start the conversation.</div>";
-    box.scrollTop=box.scrollHeight;
+    const rows=await getBeyondConversation(currentOtherId); currentRows=rows; renderMessageRows(rows);
   }catch(e){setStatus(e.message)}
+}
+function messageMatches(m,q){return !q||String(m.content||"").toLowerCase().includes(q.toLowerCase())}
+function renderMessageRows(rows){
+  const box=$("messageList"),q=($("messageSearch")?.value||"").trim(),filtered=rows.filter(m=>messageMatches(m,q));
+  box.innerHTML=filtered.length?filtered.map((m,i)=>{const mine=m.sender_id===currentUser.id;const lastMine=mine&&!filtered.slice(i+1).some(x=>x.sender_id===currentUser.id);const receipt=mine&&lastMine?"<span class='read-receipt'>"+(m.read?"✓✓ Seen":"✓ Sent")+"</span>":"";return "<div class='bubble "+(mine?"mine":"")+"'>"+esc(m.content)+"<time>"+new Date(m.created_at).toLocaleString()+receipt+"</time></div>"}).join(""):"<div class='empty-state'>"+(q?"No matching messages.":"Start the conversation.")+"</div>";
+  box.scrollTop=box.scrollHeight;
 }
 $("messageForm").addEventListener("submit",async e=>{
   e.preventDefault();const input=$("messageInput"),content=input.value.trim();
@@ -84,7 +83,7 @@ $("messageForm").addEventListener("submit",async e=>{
   catch(err){setStatus(err.message)}
   finally{input.disabled=false;input.focus()}
 });
-$("refreshBtn").onclick=loadConversations;
+$("refreshBtn").onclick=loadConversations;\n$("messageSearch")?.addEventListener("input",()=>renderMessageRows(currentRows));\n$("clearSearch")?.addEventListener("click",()=>{if($("messageSearch"))$("messageSearch").value="";renderMessageRows(currentRows)});
 $("messageInput").addEventListener("input",()=>{
   sendTyping(true);
   clearTimeout(typingTimer);
