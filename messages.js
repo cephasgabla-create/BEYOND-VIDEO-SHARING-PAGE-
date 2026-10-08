@@ -60,6 +60,7 @@ async function openConversation(id){
   currentOtherId=id;
   const p=await loadProfileForUser(id);
   $("chatHeader").innerHTML="<div><strong>"+esc(profileName(p))+"</strong><span id=\"chatPresence\">○ Offline</span><span id=\"chatTyping\"></span></div>";
+  $("profileBtn").disabled=false;$("deleteConversationBtn").disabled=false;
   await openChatPresence();
   $("messageInput").disabled=false;$("sendBtn").disabled=false;setStatus("");
   await renderConversation();await markBeyondConversationRead(id);await loadConversations();
@@ -70,9 +71,10 @@ async function renderConversation(){
   }catch(e){setStatus(e.message)}
 }
 function messageMatches(m,q){return !q||String(m.content||"").toLowerCase().includes(q.toLowerCase())}
+function messageActions(m){const mine=m.sender_id===currentUser.id;return "<div class=\"message-actions\"><button type=\"button\" data-delete-me=\""+m.id+"\">Delete for me</button>"+(mine?"<button type=\"button\" data-delete-everyone=\""+m.id+"\">Delete for everyone</button>":"")+"</div>"}
 function renderMessageRows(rows){
   const box=$("messageList"),q=($("messageSearch")?.value||"").trim(),filtered=rows.filter(m=>messageMatches(m,q));
-  box.innerHTML=filtered.length?filtered.map((m,i)=>{const mine=m.sender_id===currentUser.id;const lastMine=mine&&!filtered.slice(i+1).some(x=>x.sender_id===currentUser.id);const receipt=mine&&lastMine?"<span class='read-receipt'>"+(m.read?"✓✓ Seen":"✓ Sent")+"</span>":"";return "<div class='bubble "+(mine?"mine":"")+"'>"+esc(m.content)+"<time>"+new Date(m.created_at).toLocaleString()+receipt+"</time></div>"}).join(""):"<div class='empty-state'>"+(q?"No matching messages.":"Start the conversation.")+"</div>";
+  box.innerHTML=filtered.length?filtered.map((m,i)=>{const mine=m.sender_id===currentUser.id;const lastMine=mine&&!filtered.slice(i+1).some(x=>x.sender_id===currentUser.id);const receipt=mine&&lastMine?"<span class='read-receipt'>"+(m.read?"✓✓ Seen":"✓ Sent")+"</span>":"";return "<div class='bubble-wrap "+(mine?"mine":"")+""><div class='bubble "+(mine?"mine":"")+"'>"+esc(m.content)+"<time>"+new Date(m.created_at).toLocaleString()+receipt+"</time></div>"+messageActions(m)+"</div>"}).join(""):"<div class='empty-state'>"+(q?"No matching messages.":"Start the conversation.")+"</div>";
   box.scrollTop=box.scrollHeight;
 }
 $("messageForm").addEventListener("submit",async e=>{
@@ -83,7 +85,10 @@ $("messageForm").addEventListener("submit",async e=>{
   catch(err){setStatus(err.message)}
   finally{input.disabled=false;input.focus()}
 });
-$("refreshBtn").onclick=loadConversations;\n$("messageSearch")?.addEventListener("input",()=>renderMessageRows(currentRows));\n$("clearSearch")?.addEventListener("click",()=>{if($("messageSearch"))$("messageSearch").value="";renderMessageRows(currentRows)});
+$("refreshBtn").onclick=loadConversations;\n$("messageSearch")?.addEventListener("input",()=>renderMessageRows(currentRows));
+$("profileBtn")?.addEventListener("click",async()=>{const p=await loadProfileForUser(currentOtherId);if(p?.username)location.href="profile.html?username="+encodeURIComponent(p.username)});
+$("deleteConversationBtn")?.addEventListener("click",async()=>{if(!currentOtherId||!confirm("Delete this conversation for you?"))return;try{await deleteBeyondConversationForMe(currentOtherId);await renderConversation();await loadConversations();setStatus("Conversation deleted for you.")}catch(e){setStatus(e.message)}});
+$("messageList")?.addEventListener("click",async e=>{const me=e.target.closest("[data-delete-me]"),all=e.target.closest("[data-delete-everyone]");try{if(me&&confirm("Delete this message for you?")){await deleteBeyondMessageForMe(Number(me.dataset.deleteMe));await renderConversation();await loadConversations()}else if(all&&confirm("Delete this message for everyone?")){await deleteBeyondMessageForEveryone(Number(all.dataset.deleteEveryone));await renderConversation();await loadConversations()}}catch(err){setStatus(err.message)}});\n$("clearSearch")?.addEventListener("click",()=>{if($("messageSearch"))$("messageSearch").value="";renderMessageRows(currentRows)});
 $("messageInput").addEventListener("input",()=>{
   sendTyping(true);
   clearTimeout(typingTimer);
