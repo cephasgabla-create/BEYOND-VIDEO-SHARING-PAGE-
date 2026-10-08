@@ -235,3 +235,66 @@ do $$ begin
   using (bucket_id = 'videos' and (storage.foldername(name))[1] = auth.uid()::text)
   with check (bucket_id = 'videos' and (storage.foldername(name))[1] = auth.uid()::text);
 exception when duplicate_object then null; end $$;
+
+
+-- Keep aggregate like counts synchronized with the likes table.
+create or replace function public.sync_video_likes_count()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if tg_op = 'INSERT' then
+    update public.videos
+      set likes_count = (select count(*) from public.likes where video_id = new.video_id)
+      where id = new.video_id;
+    return new;
+  elsif tg_op = 'DELETE' then
+    update public.videos
+      set likes_count = (select count(*) from public.likes where video_id = old.video_id)
+      where id = old.video_id;
+    return old;
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists beyond_sync_video_likes on public.likes;
+create trigger beyond_sync_video_likes
+after insert or delete on public.likes
+for each row execute function public.sync_video_likes_count();
+
+-- Increment a video view through a controlled RPC so viewers do not need
+-- permission to update arbitrary video rows directly.
+create or replace function public.increment_video_view(video_id bigint)
+returns bigint
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  new_count bigint;
+begin
+  update public.videos
+    set views_count = coalesce(views_count,0) + 1
+    where id = increment_video_view.video_id
+      and status = 'published'
+    returning views_count into new_count;
+
+  return coalesce(new_count,0);
+end;
+$$;
+
+grant execute on function public.increment_video_view(bigint) to anon, authenticated;
+
+-- Make sure realtime can deliver interaction changes.
+do $$ begin
+  alter publication supabase_realtime add table public.videos;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table public.likes;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table public.comments;
+exception when duplicate_object then null; end $$;
