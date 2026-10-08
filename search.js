@@ -32,10 +32,14 @@ function renderResults(profiles,videos,q){
   const card=document.createElement("article");card.className="result-card";
   const name=document.createElement("h3");name.textContent="@"+(profile.username||"Beyond creator");
   const bio=document.createElement("p");bio.textContent=profile.bio||profile.display_name||"";
+  const actions=document.createElement("div");actions.className="creator-actions";
   const follow=document.createElement("button");follow.textContent="Follow";follow.className="follow-button";
   follow.onclick=async()=>{try{const user=await getCurrentBeyondUser();if(!user){location.href="login.html";return}const following=await getBeyondFollowState(profile.id);await setBeyondFollow(profile.id,!following);await updateSearchFollowButton(follow,profile.id)}catch(e){alert(e.message||"Could not update follow.")}};
-  updateSearchFollowButton(follow,profile.id);
-  card.append(name,bio,follow);results.appendChild(card);
+  const block=document.createElement("button");block.className="block-button";
+  const refreshBlockButton=async()=>{try{block.textContent=await isBeyondUserBlocked(profile.id)?"Unblock":"Block"}catch{block.textContent="Block"}};
+  block.onclick=async()=>{try{const blocked=await isBeyondUserBlocked(profile.id);if(blocked){await setBeyondUserBlocked(profile.id,false)}else if(confirm("Block this account? Their content and interactions with you will be hidden.")){await setBeyondUserBlocked(profile.id,true)}await performSearch()}catch(e){alert(e.message||"Could not update block setting.")}};
+  updateSearchFollowButton(follow,profile.id);await refreshBlockButton();
+  actions.append(follow,block);card.append(name,bio,actions);results.appendChild(card);
  });
  const vh=document.createElement("h3");vh.textContent="Videos";results.appendChild(vh);
  if(!videos.length){const p=document.createElement("p");p.textContent="No videos found.";results.appendChild(p)}
