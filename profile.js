@@ -106,8 +106,54 @@ async function loadNotifications(){const db=await openDB();const req=db.transact
 
 function openNotifications(){location.href="notifications.html";}
 
-function showLikedVideos(){
-  alert("Liked videos will be added next.");
+async function showLikedVideos(){
+  const db=await openDB();
+  const tx=db.transaction(["likes","videos"],"readonly");
+  const likesStore=tx.objectStore("likes");
+  const videosStore=tx.objectStore("videos");
+  const likesReq=likesStore.getAll();
+  const videosReq=videosStore.getAll();
+
+  likesReq.onsuccess=()=>{
+    videosReq.onsuccess=()=>{
+      const likedIds=new Set(likesReq.result.map(l=>l.postId));
+      const likedVideos=videosReq.result.filter(v=>likedIds.has(v.id)).reverse();
+      const container=document.getElementById("profileVideos");
+      if(!container)return;
+      container.innerHTML="";
+
+      if(!likedVideos.length){
+        const empty=document.createElement("p");
+        empty.id="noVideos";
+        empty.textContent="You haven't liked any videos yet.";
+        container.appendChild(empty);
+        return;
+      }
+
+      likedVideos.forEach(p=>{
+        const item=document.createElement("div");
+        item.className="video-item";
+
+        const v=document.createElement("video");
+        v.muted=true;
+        v.loop=true;
+        v.playsInline=true;
+        v.controls=true;
+        if(p.video instanceof Blob){
+          v.src=URL.createObjectURL(p.video);
+        }else if(p.video_url){
+          v.src=p.video_url;
+        }
+
+        const o=document.createElement("div");
+        o.className="video-overlay";
+        o.textContent=p.caption||"";
+
+        item.append(v,o);
+        container.appendChild(item);
+      });
+    };
+  };
 }
 
 function goHome(){location.href="index.html"}
