@@ -568,6 +568,11 @@ join profiles p on p.id = v.user_id
 left join comment_counts cc on cc.video_id = v.id
 left join creator_activity ca on ca.user_id = v.user_id
 where v.status = 'published'
+  and (
+    coalesce(p.private_account,false) = false
+    or v.user_id = (select id from current_user_id)
+    or v.user_id in (select following_id from followed_creators)
+  )
   and not exists (select 1 from blocked_accounts b where b.user_id = v.user_id)
 order by recommendation_score desc, v.created_at desc
 limit greatest(1, least(coalesce(p_limit,30),100));
@@ -594,6 +599,7 @@ with published as (
          coalesce(c.comments_count,0)::numeric as comments_count,
          coalesce(f.followers_count,0)::numeric as followers_count
   from public.videos v
+  join public.profiles vp on vp.id = v.user_id
   left join (
     select video_id, count(*)::numeric comments_count
     from public.comments
@@ -606,6 +612,7 @@ with published as (
   ) f on f.following_id = v.user_id
   where v.status = 'published'
     and coalesce(v.visibility,'public') = 'public'
+    and (coalesce(vp.private_account,false) = false or v.user_id = auth.uid())
     and (auth.uid() is null or not exists (select 1 from public.blocked_users b where (b.blocker_id=auth.uid() and b.blocked_id=v.user_id) or (b.blocker_id=v.user_id and b.blocked_id=auth.uid())))
 ),
 scored as (
