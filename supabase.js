@@ -204,13 +204,10 @@ async function markBeyondMessageRead(messageId){
   const db=beyondDB||initBeyondDatabase();
   const user=await getCurrentBeyondUser();
   if(!db||!user) throw new Error("Please sign in first.");
-  const {data,error}=await db.from("messages")
-    .update({read:true})
-    .eq("id",messageId)
-    .eq("receiver_id",user.id)
-    .select().single();
+  if(!messageId) throw new Error("A message ID is required.");
+  const {data,error}=await db.rpc("mark_beyond_message_read",{message_id:Number(messageId)});
   if(error) throw error;
-  return data;
+  return Boolean(data);
 }
 
 
@@ -305,11 +302,11 @@ async function getBeyondUnreadMessageCount(){
 async function markBeyondConversationRead(otherUserId){
   const db=beyondDB||initBeyondDatabase();
   const user=await getCurrentBeyondUser();
-  if(!db||user===null) throw new Error("Please sign in first.");
-  const {error}=await db.from("messages").update({read:true})
-    .eq("receiver_id",user.id).eq("sender_id",otherUserId).eq("read",false);
+  if(!db||!user) throw new Error("Please sign in first.");
+  if(!otherUserId) throw new Error("A conversation user is required.");
+  const {data,error}=await db.rpc("mark_beyond_conversation_read",{other_user_id:otherUserId});
   if(error) throw error;
-  return true;
+  return Number(data||0);
 }
 
 function subscribeBeyondMessages(userId,callback){
