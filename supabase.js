@@ -336,6 +336,48 @@ function subscribeBeyondMessages(userId,callback){
 }
 
 
+function createBeyondChatChannel(userId,otherUserId){
+  const db=beyondDB||initBeyondDatabase();
+  if(!db||!userId||!otherUserId)return null;
+  const key=[userId,otherUserId].sort().join("-");
+  return db.channel("beyond-chat-presence-"+key,{
+    config:{presence:{key:userId},broadcast:{ack:true}}
+  });
+}
+
+function subscribeBeyondChatPresence(userId,otherUserId,{onPresence,onTyping}={}){
+  const channel=createBeyondChatChannel(userId,otherUserId);
+  if(!channel)return null;
+  if(typeof onPresence==="function"){
+    channel.on("presence",{event:"sync"},()=>onPresence(channel.presenceState()));
+    channel.on("presence",{event:"join"},()=>onPresence(channel.presenceState()));
+    channel.on("presence",{event:"leave"},()=>onPresence(channel.presenceState()));
+  }
+  if(typeof onTyping==="function"){
+    channel.on("broadcast",{event:"typing"},payload=>onTyping(payload.payload||{}));
+  }
+  channel.subscribe(async status=>{
+    if(status==="SUBSCRIBED"){
+      await channel.track({online:true,at:new Date().toISOString()});
+    }
+  });
+  return channel;
+}
+
+async function setBeyondChatTyping(channel,isTyping){
+  if(!channel)return;
+  try{
+    await channel.send({type:"broadcast",event:"typing",payload:{userId:currentBeyondUserIdForChat||null,typing:Boolean(isTyping),at:new Date().toISOString()}});
+  }catch(e){}
+}
+
+async function leaveBeyondChatPresence(channel){
+  if(!channel)return;
+  try{await channel.untrack()}catch(e){}
+  try{await channel.unsubscribe()}catch(e){}
+}
+
+
 async function updateBeyondMessageBadge(selector="#beyondMessageBadge"){
   const badge=document.querySelector(selector);
   if(!badge)return 0;
