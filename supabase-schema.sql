@@ -227,3 +227,11 @@ exception when duplicate_object then null; end $$;
 
 create index if not exists follows_following_idx on follows(following_id, created_at desc);
 create index if not exists follows_follower_idx on follows(follower_id, created_at desc);
+
+
+-- Storage safety for Beyond video files
+do $$ begin
+  create policy "Beyond users can update their video files" on storage.objects for update to authenticated
+  using (bucket_id = 'videos' and (storage.foldername(name))[1] = auth.uid()::text)
+  with check (bucket_id = 'videos' and (storage.foldername(name))[1] = auth.uid()::text);
+exception when duplicate_object then null; end $$;
