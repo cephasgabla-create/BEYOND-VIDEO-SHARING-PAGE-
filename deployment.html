@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Beyond Deployment</title>
+<link rel="stylesheet" href="deployment.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html"><span class="logo">B</span><span><small>BEYOND</small><strong>Deployment</strong></span></a>
+  <div class="actions">
+    <button class="ghost" onclick="location.href='creator-studio.html'">← Creator Studio</button>
+    <button class="primary" onclick="refreshDeployment()">↻ Refresh</button>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div>
+      <span class="eyebrow">BEYOND DEPLOYMENT</span>
+      <h1>Deploy Beyond with confidence.</h1>
+      <p>Monitor the static site setup, GitHub Pages workflow, routes, and production readiness from one place.</p>
+    </div>
+    <div id="overallBadge" class="status checking">Checking…</div>
+  </section>
+
+  <section class="cards">
+    <article class="card">
+      <span>Deployment</span><strong id="deployStatus">Ready</strong><small>GitHub Pages workflow</small>
+    </article>
+    <article class="card">
+      <span>Site mode</span><strong>Static</strong><small>HTML, CSS and JavaScript</small>
+    </article>
+    <article class="card">
+      <span>Branch</span><strong>main</strong><small>Automatic deployment source</small>
+    </article>
+    <article class="card">
+      <span>Last checked</span><strong id="checkedAt">—</strong><small>Your current browser</small>
+    </article>
+  </section>
+
+  <section class="panel">
+    <div class="panelHead"><div><span class="eyebrow">PRODUCTION CHECKS</span><h2>Deployment health</h2></div></div>
+    <div id="checks" class="checks"></div>
+  </section>
+
+  <section class="grid">
+    <section class="panel">
+      <span class="eyebrow">WORKFLOW</span>
+      <h2>How Beyond deploys</h2>
+      <ol>
+        <li>Push changes to the <b>main</b> branch.</li>
+        <li>GitHub Actions builds the static site artifact.</li>
+        <li>GitHub Pages publishes the artifact.</li>
+        <li>The deployed site uses <b>404.html</b> for route fallback.</li>
+      </ol>
+      <button class="primary wide" onclick="openGitHub()">Open GitHub repository</button>
+    </section>
+    <section class="panel">
+      <span class="eyebrow">PRODUCTION URL</span>
+      <h2>Beyond live site</h2>
+      <p id="siteUrl" class="site-url"></p>
+      <p class="muted">If the site is still updating, wait for the latest GitHub Pages workflow to finish and then refresh this page.</p>
+      <button class="ghost wide" onclick="openSite()">Open deployed Beyond</button>
+    </section>
+  </section>
+
+  <section class="panel notice">
+    <b>Supabase note</b>
+    <p>GitHub Pages can host the Beyond front end. Supabase still needs to be configured in <code>supabase.js</code> before database, authentication, and storage features work in production.</p>
+  </section>
+</main>
+<script src="deployment.js"></script>
+</body>
+</html>
