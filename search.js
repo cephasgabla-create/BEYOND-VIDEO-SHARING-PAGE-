@@ -14,12 +14,13 @@ async function performSearch(){
  if(!client){status.textContent="Supabase is not configured yet.";return}
  try{
   const term=q.replace(/[,%()]/g," ").trim();
+  const blocked=await getBeyondBlockedUserIds();
   const [{data:profiles,error:pe},{data:videos,error:ve}]=await Promise.all([
    client.from("profiles").select("id,username,display_name,avatar_url,bio").or("username.ilike.%"+term+"%,display_name.ilike.%"+term+"%").limit(50),
    client.from("videos").select("id,user_id,video_url,caption,hashtags,created_at,profiles(username,display_name,avatar_url)").eq("status","published").or("caption.ilike.%"+term+"%,hashtags.ilike.%"+term+"%").order("created_at",{ascending:false}).limit(100)
   ]);
   if(pe)throw pe;if(ve)throw ve;
-  renderResults(profiles||[],videos||[],q);
+  renderResults((profiles||[]).filter(p=>!blocked.has(p.id)),(videos||[]).filter(v=>!blocked.has(v.user_id)),q);
  }catch(error){console.error(error);status.textContent="Search is temporarily unavailable."}
 }
 
