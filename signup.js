@@ -40,11 +40,6 @@ form.addEventListener("submit",async e=>{
     if(!data.user)throw new Error("Supabase did not create the account.");
 
     let profile=null;
-    const {data:createdProfile,error:profileError}=await db.from("profiles")
-      .select("id,username,display_name,bio,avatar_url,banner_url,accent_color")
-      .eq("id",data.user.id).maybeSingle();
-    if(profileError) console.warn("Profile will be created by the database trigger:",profileError.message);
-    profile=createdProfile;
 
     if(!data.session){
       message.textContent="Account created. Check your email to confirm it, then log in.";
@@ -52,13 +47,9 @@ form.addEventListener("submit",async e=>{
       return;
     }
 
-    if(!profile){
-      const {data:upserted,error:upsertError}=await db.from("profiles")
-        .upsert({id:data.user.id,username,display_name:username},{onConflict:"id"})
-        .select("id,username,display_name,bio,avatar_url,banner_url,accent_color").single();
-      if(upsertError)throw upsertError;
-      profile=upserted;
-    }
+    const {data:ensuredProfile,error:ensureError}=await db.rpc("ensure_beyond_profile");
+    if(ensureError)throw ensureError;
+    profile=ensuredProfile;
     saveSession(data.user,profile,true);
     location.replace("index.html");
   }catch(error){
