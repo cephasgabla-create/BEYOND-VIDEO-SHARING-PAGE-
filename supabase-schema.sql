@@ -1269,3 +1269,52 @@ revoke all on function public.delete_beyond_conversation_for_me(uuid) from publi
 grant execute on function public.delete_beyond_message_for_me(bigint) to authenticated;
 grant execute on function public.delete_beyond_message_for_everyone(bigint) to authenticated;
 grant execute on function public.delete_beyond_conversation_for_me(uuid) to authenticated;
+
+
+-- Beyond privacy controls: stored on the authenticated user's profile.
+alter table public.profiles add column if not exists private_account boolean not null default false;
+alter table public.profiles add column if not exists activity_status boolean not null default true;
+alter table public.profiles add column if not exists comment_filter boolean not null default true;
+alter table public.profiles add column if not exists tag_review boolean not null default true;
+alter table public.profiles add column if not exists personalized_recommendations boolean not null default true;
+alter table public.profiles add column if not exists personalized_notifications boolean not null default true;
+
+create or replace function public.get_beyond_privacy_settings()
+returns jsonb language sql security definer set search_path=public as $$
+  select jsonb_build_object(
+    'privateAccount', coalesce(private_account,false),
+    'activityStatus', coalesce(activity_status,true),
+    'commentFilter', coalesce(comment_filter,true),
+    'tagReview', coalesce(tag_review,true),
+    'recommendations', coalesce(personalized_recommendations,true),
+    'personalizedNotifications', coalesce(personalized_notifications,true)
+  ) from public.profiles where id=auth.uid();
+$$;
+
+create or replace function public.update_beyond_privacy_settings(
+  p_private_account boolean,
+  p_activity_status boolean,
+  p_comment_filter boolean,
+  p_tag_review boolean,
+  p_recommendations boolean,
+  p_personalized_notifications boolean
+) returns jsonb language plpgsql security definer set search_path=public as $$
+declare result jsonb;
+begin
+  if auth.uid() is null then raise exception 'Authentication required'; end if;
+  update public.profiles set
+    private_account=coalesce(p_private_account,false),
+    activity_status=coalesce(p_activity_status,true),
+    comment_filter=coalesce(p_comment_filter,true),
+    tag_review=coalesce(p_tag_review,true),
+    personalized_recommendations=coalesce(p_recommendations,true),
+    personalized_notifications=coalesce(p_personalized_notifications,true)
+  where id=auth.uid();
+  if not found then raise exception 'Profile not found'; end if;
+  select public.get_beyond_privacy_settings() into result;
+  return result;
+end; $$;
+revoke all on function public.get_beyond_privacy_settings() from public;
+revoke all on function public.update_beyond_privacy_settings(boolean,boolean,boolean,boolean,boolean,boolean) from public;
+grant execute on function public.get_beyond_privacy_settings() to authenticated;
+grant execute on function public.update_beyond_privacy_settings(boolean,boolean,boolean,boolean,boolean,boolean) to authenticated;
