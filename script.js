@@ -4,56 +4,131 @@ document.addEventListener("DOMContentLoaded",()=>{loadBeyondVideos();loadSocialP
 
 function openDatabase(){return new Promise((resolve,reject)=>{const request=indexedDB.open("BeyondDatabase",4);request.onupgradeneeded=e=>{const db=e.target.result;if(!db.objectStoreNames.contains("videos"))db.createObjectStore("videos",{keyPath:"id",autoIncrement:true});if(!db.objectStoreNames.contains("comments"))db.createObjectStore("comments",{keyPath:"id",autoIncrement:true});if(!db.objectStoreNames.contains("likes"))db.createObjectStore("likes",{keyPath:"key"});if(!db.objectStoreNames.contains("notifications"))db.createObjectStore("notifications",{keyPath:"id",autoIncrement:true});if(!db.objectStoreNames.contains("socialPosts"))db.createObjectStore("socialPosts",{keyPath:"id",autoIncrement:true})};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)})}
 
+let beyondActiveFeed="for-you";
+let beyondForYouChannel=null;
+let beyondFeedRefreshTimer=null;
+
 async function loadBeyondVideos(){
+  return loadForYouFeed();
+}
+
+function normalizeRecommendedVideo(row){
+  return {
+    id:row.id,
+    user_id:row.user_id,
+    video_url:row.video_url,
+    caption:row.caption||"",
+    hashtags:row.hashtags||"",
+    status:"published",
+    views_count:Number(row.views_count||0),
+    likes_count:Number(row.likes_count||0),
+    created_at:row.created_at,
+    profiles:{
+      username:row.username||"BeyondCreator",
+      display_name:row.display_name||"",
+      avatar_url:row.avatar_url||null
+    },
+    recommendation_score:Number(row.recommendation_score||0)
+  };
+}
+
+async function loadForYouFeed(){
   const feed=document.getElementById("feed");
   if(!feed)return;
-
+  beyondActiveFeed="for-you";
   const staticCards=Array.from(feed.querySelectorAll(".video-card"));
   const loading=document.getElementById("feedLoading");
-  try{
-    const db=typeof initBeyondDatabase==="function" ? initBeyondDatabase() : null;
-    if(db){
-      const {data:remoteVideos,error}=await db
-        .from("videos")
-        .select("id,user_id,video_url,caption,hashtags,status,views_count,likes_count,created_at,profiles(username,display_name,avatar_url)")
-        .eq("status","published")
-        .order("created_at",{ascending:false});
-
-      if(error)throw error;
-
-      staticCards.forEach(card=>card.remove());
-      remoteVideos.forEach(video=>createRemoteVideoCard(video));
-      activateVideoObserver();
-      updateAllFollowButtons();
-
-      if(!remoteVideos.length){
-        const empty=document.createElement("div");
-        empty.className="feed-empty";
-        empty.textContent="No published videos yet. Upload the first Beyond video.";
-        feed.appendChild(empty);
-      }
-      if(loading)loading.remove();
-      return;
-    }
-  }catch(e){
-    console.warn("Beyond Supabase feed unavailable; using local videos:",e);
+  const db=typeof initBeyondDatabase==="function"?initBeyondDatabase():null;
+  if(!db){
+    staticCards.forEach(card=>card.style.display="flex");
+    if(loading)loading.remove();
+    return;
   }
-
-  // Safe fallback for development when Supabase credentials are not configured.
   try{
-    const db=await openDatabase();
-    const req=db.transaction("videos","readonly").objectStore("videos").getAll();
-    req.onsuccess=()=>{
-      req.result.reverse().forEach(createVideoCard);
-      activateVideoObserver();
-      updateAllFollowButtons();
-      if(loading)loading.remove();
-    };
-  }catch(e){
-    console.error("Beyond local feed unavailable:",e);
+    let rows=null;
+    const rpc=await db.rpc("get_beyond_for_you_feed",{p_limit:50});
+    if(!rpc.error)rows=(rpc.data||[]).map(normalizeRecommendedVideo);
+    else rows=await buildClientForYouFeed(db,50);
+
+    staticCards.forEach(card=>card.remove());
+    feed.querySelectorAll(".feed-empty").forEach(x=>x.remove());
+    (rows||[]).forEach(video=>createRemoteVideoCard(video));
+    activateVideoObserver();
+    await updateAllFollowButtons();
+    if(!(rows||[]).length){
+      const empty=document.createElement("div");
+      empty.className="feed-empty";
+      empty.textContent="No published videos yet. Upload the first Beyond video.";
+      feed.appendChild(empty);
+    }
+    if(loading)loading.remove();
+    enableBeyondRecommendationRealtime();
+  }catch(error){
+    console.warn("Beyond For You feed unavailable:",error);
     if(loading)loading.remove();
   }
 }
+
+async function buildClientForYouFeed(db,limit){
+  const user=await getCurrentBeyondUser();
+  const [{data:videos,error:ve},{data:follows,error:fe}]=await Promise.all([
+    db.from("videos").select("id,user_id,video_url,caption,hashtags,status,views_count,likes_count,created_at,profiles(username,display_name,avatar_url)").eq("status","published").order("created_at",{ascending:false}).limit(100),
+    user?db.from("follows").select("following_id").eq("follower_id",user.id):Promise.resolve({data:[],error:null})
+  ]);
+  if(ve)throw ve;if(fe)throw fe;
+  const followed=new Set((follows||[]).map(x=>x.following_id));
+  const ids=(videos||[]).map(v=>v.id);
+  const [{data:comments},{data:likes}]=await Promise.all([
+    ids.length?db.from("comments").select("video_id,user_id"):Promise.resolve({data:[]}),
+    ids.length?db.from("likes").select("video_id,user_id"):Promise.resolve({data:[]})
+  ]);
+  const tagInterest=new Map();
+  const interacted=new Set();
+  (likes||[]).filter(x=>user&&x.user_id===user.id).forEach(x=>interacted.add(x.video_id));
+  (comments||[]).filter(x=>user&&x.user_id===user.id).forEach(x=>interacted.add(x.video_id));
+  (videos||[]).filter(v=>interacted.has(v.id)).forEach(v=>{
+    String(v.hashtags||"").toLowerCase().split(/\s+/).filter(Boolean).forEach(tag=>tagInterest.set(tag,(tagInterest.get(tag)||0)+1));
+  });
+  const commentCounts=new Map();
+  (comments||[]).forEach(x=>commentCounts.set(x.video_id,(commentCounts.get(x.video_id)||0)+1));
+  const likeCounts=new Map();
+  (likes||[]).forEach(x=>likeCounts.set(x.video_id,(likeCounts.get(x.video_id)||0)+1));
+  const creatorActivity=new Map();
+  const week=Date.now()-7*86400000;
+  (videos||[]).forEach(v=>{if(new Date(v.created_at).getTime()>=week)creatorActivity.set(v.user_id,(creatorActivity.get(v.user_id)||0)+1)});
+  return (videos||[]).map(v=>{
+    const age=Math.max(0,(Date.now()-new Date(v.created_at).getTime())/86400000);
+    const tags=String(v.hashtags||"").toLowerCase().split(/\s+/).filter(Boolean);
+    const tagScore=Math.min(30,tags.reduce((sum,t)=>sum+(tagInterest.get(t)||0),0)*8);
+    const score=(followed.has(v.user_id)?55:0)+tagScore+
+      Math.min(25,Math.log1p(Number(v.views_count||0))*3)+
+      Math.min(24,Math.log1p(likeCounts.get(v.id)||Number(v.likes_count||0))*5)+
+      Math.min(24,Math.log1p(commentCounts.get(v.id)||0)*6)+
+      Math.min(18,(creatorActivity.get(v.user_id)||0)*4)+
+      Math.max(0,28-age*2)+(Math.random()*3);
+    return {...v,recommendation_score:score};
+  }).sort((a,b)=>b.recommendation_score-a.recommendation_score).slice(0,limit);
+}
+
+function enableBeyondRecommendationRealtime(){
+  const db=window.beyondDB||initBeyondDatabase();
+  if(!db||beyondForYouChannel)return;
+  beyondForYouChannel=db.channel("beyond-for-you-feed")
+    .on("postgres_changes",{event:"*",schema:"public",table:"videos"},scheduleForYouRefresh)
+    .on("postgres_changes",{event:"*",schema:"public",table:"likes"},scheduleForYouRefresh)
+    .on("postgres_changes",{event:"*",schema:"public",table:"comments"},scheduleForYouRefresh)
+    .on("postgres_changes",{event:"*",schema:"public",table:"follows"},scheduleForYouRefresh)
+    .subscribe(status=>{
+      if(status==="CHANNEL_ERROR"||status==="TIMED_OUT"){beyondForYouChannel=null}
+    });
+}
+
+function scheduleForYouRefresh(){
+  if(beyondActiveFeed!=="for-you")return;
+  clearTimeout(beyondFeedRefreshTimer);
+  beyondFeedRefreshTimer=setTimeout(()=>loadForYouFeed(),900);
+}
+
 function createRemoteVideoCard(post){
   const username=post.profiles?.username||"BeyondCreator";
   const feed=document.getElementById("feed");
@@ -274,14 +349,25 @@ async function updateAllFollowButtons(){
 async function showFollowing(){
  const db=initBeyondDatabase();const user=await getCurrentBeyondUser();
  if(!db||!user){location.href="login.html";return}
- const following=await getFollowing();
- const allowed=new Set(following);
- document.querySelectorAll(".video-card").forEach(card=>{
-   card.style.display=allowed.has(card.dataset.creator)?"flex":"none";
- });
- if(!following.length)alert("You are not following anyone yet. Follow a creator first!");
+ beyondActiveFeed="following";
+ const {data:follows,error:followError}=await db.from("follows").select("following_id").eq("follower_id",user.id);
+ if(followError){alert("Could not load your Following feed.");return}
+ const ids=(follows||[]).map(x=>x.following_id);
+ document.querySelectorAll(".video-card").forEach(card=>card.remove());
+ if(!ids.length){
+   const feed=document.getElementById("feed");if(feed){const empty=document.createElement("div");empty.className="feed-empty";empty.textContent="You are not following anyone yet. Follow a creator to build your Following feed.";feed.appendChild(empty)}
+   return;
+ }
+ const {data:videos,error}=await db.from("videos").select("id,user_id,video_url,caption,hashtags,status,views_count,likes_count,created_at,profiles(username,display_name,avatar_url)").eq("status","published").in("user_id",ids).order("created_at",{ascending:false});
+ if(error){alert("Could not load your Following feed.");return}
+ (videos||[]).forEach(createRemoteVideoCard);
+ activateVideoObserver();
+ await updateAllFollowButtons();
 }
-function showFeed(){document.querySelectorAll(".video-card").forEach(card=>card.style.display="flex");document.getElementById("feed")?.scrollTo({top:0,behavior:"smooth"})}
+async function showFeed(){
+ await loadForYouFeed();
+ document.getElementById("feed")?.scrollTo({top:0,behavior:"smooth"});
+}
 
 function commentVideo(postId){
   currentPostId=postId;
