@@ -230,3 +230,5 @@ async function saveEditor(forcedStatus){
 }
 document.getElementById("editCaption")?.addEventListener("input",updateCaptionCount);
 document.getElementById("editModal")?.addEventListener("click",e=>{if(e.target.id==="editModal")closeEditor()});
+
+function openPreview(id){const v=findContentItem(id);if(!v)return;const m=document.getElementById("previewModal"),x=document.getElementById("previewVideo");document.getElementById("previewTitle").textContent=v.caption||"Untitled Beyond video";document.getElementById("previewTags").textContent=v.hashtags||"No hashtags";document.getElementById("previewStats").textContent="Views "+v.views+" • Likes "+v.likeCount+" • Comments "+v.commentCount+" • "+(v.visibility||"public");x.src=v.videoUrl||"";x.load();m.classList.add("show")}function closePreview(){const m=document.getElementById("previewModal"),x=document.getElementById("previewVideo");m.classList.remove("show");x.pause();x.removeAttribute("src");x.load()}
