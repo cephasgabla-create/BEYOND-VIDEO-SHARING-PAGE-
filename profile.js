@@ -1,7 +1,7 @@
 const usernameEl=document.getElementById("username");
 const avatarEl=document.getElementById("avatar");
 const bioEl=document.getElementById("bio");
-const followingEl=document.getElementById("following"),likesEl=document.getElementById("likes");
+const followingEl=document.getElementById("following"),followersEl=document.getElementById("followers"),likesEl=document.getElementById("likes");
 
 function currentUser(){
   return localStorage.getItem("beyondUsername")||"BeyondCreator";
@@ -12,10 +12,11 @@ function loadProfile(){
   usernameEl.textContent="@"+u;
   avatarEl.textContent=u.charAt(0).toUpperCase();
   bioEl.textContent=localStorage.getItem("beyondBio")||"Welcome to my Beyond profile 🚀";
-  loadFollowingCount();
+  loadFollowStats();
   loadLikeCount();
   loadNotifications();
   loadVideos();
+  toggleOwnFollowInfo();
 }
 
 async function loadLikeCount(){
@@ -28,12 +29,29 @@ async function loadLikeCount(){
   };
 }
 
-function loadFollowingCount(){
-  try{
-    followingEl.textContent=JSON.parse(localStorage.getItem("beyondFollowing")||"[]").length;
-  }catch{
-    followingEl.textContent="0";
-  }
+function getFollowingList(){
+  try{return JSON.parse(localStorage.getItem("beyondFollowing")||"[]");}
+  catch{return [];}
+}
+
+function getFollowersMap(){
+  try{return JSON.parse(localStorage.getItem("beyondFollowers")||"{}");}
+  catch{return {};}
+}
+
+function saveFollowersMap(map){
+  localStorage.setItem("beyondFollowers",JSON.stringify(map));
+}
+
+function getFollowersFor(username){
+  const map=getFollowersMap();
+  return Array.isArray(map[username])?map[username]:[];
+}
+
+function loadFollowStats(){
+  const user=currentUser();
+  followingEl.textContent=getFollowingList().length;
+  followersEl.textContent=getFollowersFor(user).length;
 }
 
 async function loadVideos(){
@@ -103,6 +121,16 @@ function editProfile(){
 }
 
 async function loadNotifications(){const db=await openDB();const req=db.transaction("notifications","readonly").objectStore("notifications").getAll();req.onsuccess=()=>{const count=req.result.filter(n=>n.username===currentUser()&&!n.read).length;const b=document.getElementById("notificationButton");if(b)b.textContent=count?"🔔 "+count:"🔔 Notifications"};}
+
+function toggleOwnFollowInfo(){
+  const user=currentUser();
+  const followers=getFollowersFor(user);
+  const following=getFollowingList();
+  const summary=document.getElementById("followSummary");
+  if(summary){
+    summary.textContent=following.length+" following • "+followers.length+" followers";
+  }
+}
 
 function openNotifications(){location.href="notifications.html";}
 
