@@ -965,3 +965,11 @@ as $$
 $$;
 
 grant execute on function public.get_beyond_unread_notification_count() to authenticated;
+
+
+-- Allow each authenticated user to clear only their own notifications.
+do $$ begin
+  create policy "users delete their notifications"
+    on public.notifications for delete to authenticated
+    using (user_id = auth.uid());
+exception when duplicate_object then null; end $$;
