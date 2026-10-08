@@ -38,7 +38,7 @@ async function loadNotifications(){
    const p=profiles.get(x.actor_id),actor=p?.username||p?.display_name||"Someone";
    return {...x,actor,avatar_url:p?.avatar_url||"",title:actor};
   });
-  render(); subscribeRealtime();
+  render(); subscribeRealtime(); updateBeyondNotificationBadge();
  }catch(e){
   console.error("Beyond Notifications:",e);
   items=[];
