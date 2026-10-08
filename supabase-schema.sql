@@ -1368,3 +1368,58 @@ revoke all on function public.set_beyond_block_user(uuid,boolean) from public;
 grant execute on function public.get_beyond_blocked_users() to authenticated;
 grant execute on function public.is_beyond_blocked(uuid) to authenticated;
 grant execute on function public.set_beyond_block_user(uuid,boolean) to authenticated;
+
+
+-- Enforce blocked-user safety across interactions and reads.
+create or replace function public.beyond_blocked_interaction_guard()
+returns trigger language plpgsql security definer set search_path=public as $$
+declare target uuid;
+begin
+ if tg_table_name='messages' then
+   target := case when new.sender_id=auth.uid() then new.receiver_id else new.sender_id end;
+   if exists(select 1 from public.blocked_users where (blocker_id=auth.uid() and blocked_id=target) or (blocker_id=target and blocked_id=auth.uid()) ) then raise exception 'This interaction is unavailable because one account has blocked the other.'; end if;
+ elsif tg_table_name='follows' then
+   if exists(select 1 from public.blocked_users where (blocker_id=new.follower_id and blocked_id=new.following_id) or (blocker_id=new.following_id and blocked_id=new.follower_id)) then raise exception 'You cannot follow this account.'; end if;
+ elsif tg_table_name='comments' then
+   select user_id into target from public.videos where id=new.video_id;
+   if exists(select 1 from public.blocked_users where (blocker_id=auth.uid() and blocked_id=target) or (blocker_id=target and blocked_id=auth.uid()) or (blocker_id=auth.uid() and blocked_id=new.user_id) or (blocker_id=new.user_id and blocked_id=auth.uid())) then raise exception 'Comments are unavailable between these accounts.'; end if;
+ elsif tg_table_name='likes' then
+   select user_id into target from public.videos where id=new.video_id;
+   if exists(select 1 from public.blocked_users where (blocker_id=auth.uid() and blocked_id=target) or (blocker_id=target and blocked_id=auth.uid())) then raise exception 'Likes are unavailable for this account.'; end if;
+ end if;
+ return new;
+end; $$;
+drop trigger if exists beyond_block_messages on public.messages;
+create trigger beyond_block_messages before insert on public.messages for each row execute function public.beyond_blocked_interaction_guard();
+drop trigger if exists beyond_block_follows on public.follows;
+create trigger beyond_block_follows before insert on public.follows for each row execute function public.beyond_blocked_interaction_guard();
+drop trigger if exists beyond_block_comments on public.comments;
+create trigger beyond_block_comments before insert on public.comments for each row execute function public.beyond_blocked_interaction_guard();
+drop trigger if exists beyond_block_likes on public.likes;
+create trigger beyond_block_likes before insert on public.likes for each row execute function public.beyond_blocked_interaction_guard();
+
+-- Hide blocked accounts and their content from authenticated users.
+drop policy if exists "profiles are publicly readable" on public.profiles;
+create policy "profiles are readable with block filtering" on public.profiles for select using (
+ auth.uid() is null or id=auth.uid() or not exists(select 1 from public.blocked_users b where (b.blocker_id=auth.uid() and b.blocked_id=id) or (b.blocker_id=id and b.blocked_id=auth.uid()))
+);
+drop policy if exists "videos are readable" on public.videos;
+create policy "videos are readable with block filtering" on public.videos for select using (
+ auth.uid() is null or not exists(select 1 from public.blocked_users b where (b.blocker_id=auth.uid() and b.blocked_id=videos.user_id) or (b.blocker_id=videos.user_id and b.blocked_id=auth.uid()))
+);
+drop policy if exists "comments are readable" on public.comments;
+create policy "comments are readable with block filtering" on public.comments for select using (
+ auth.uid() is null or not exists(select 1 from public.blocked_users b where (b.blocker_id=auth.uid() and b.blocked_id=comments.user_id) or (b.blocker_id=comments.user_id and b.blocked_id=auth.uid()))
+);
+drop policy if exists "likes are readable" on public.likes;
+create policy "likes are readable with block filtering" on public.likes for select using (
+ auth.uid() is null or not exists(select 1 from public.blocked_users b where (b.blocker_id=auth.uid() and b.blocked_id=(select v.user_id from public.videos v where v.id=likes.video_id)) or (b.blocker_id=(select v.user_id from public.videos v where v.id=likes.video_id) and b.blocked_id=auth.uid()))
+);
+drop policy if exists "follows are readable" on public.follows;
+create policy "follows are readable with block filtering" on public.follows for select using (
+ auth.uid() is null or (not exists(select 1 from public.blocked_users b where (b.blocker_id=auth.uid() and b.blocked_id=follows.follower_id) or (b.blocker_id=follows.follower_id and b.blocked_id=auth.uid())) and not exists(select 1 from public.blocked_users b where (b.blocker_id=auth.uid() and b.blocked_id=follows.following_id) or (b.blocker_id=follows.following_id and b.blocked_id=auth.uid())))
+);
+drop policy if exists "users read their messages" on public.messages;
+create policy "users read their unblocked messages" on public.messages for select to authenticated using (
+ (sender_id=auth.uid() or receiver_id=auth.uid()) and not exists(select 1 from public.blocked_users b where (b.blocker_id=auth.uid() and b.blocked_id=case when sender_id=auth.uid() then receiver_id else sender_id end) or (b.blocker_id=case when sender_id=auth.uid() then receiver_id else sender_id end and b.blocked_id=auth.uid()))
+);
