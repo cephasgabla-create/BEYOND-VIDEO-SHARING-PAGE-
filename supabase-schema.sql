@@ -56,7 +56,9 @@ create table if not exists messages (
   receiver_id uuid references auth.users(id) on delete cascade,
   content text not null,
   created_at timestamptz default now(),
-  read boolean default false
+  read boolean default false,
+  deleted_for_sender boolean not null default false,
+  deleted_for_receiver boolean not null default false
 );
 
 create table if not exists live_rooms (
@@ -400,10 +402,11 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 
 -- Direct messages: only the sender/receiver can read; only the sender can create.
-do $$ begin
+drop policy if exists "users read their messages" on public.messages;
+do $ begin
   create policy "users read their messages" on public.messages for select to authenticated
-    using (sender_id = auth.uid() or receiver_id = auth.uid());
-exception when duplicate_object then null; end $$;
+    using ((sender_id = auth.uid() and deleted_for_sender = false) or (receiver_id = auth.uid() and deleted_for_receiver = false));
+exception when duplicate_object then null; end $;
 do $$ begin
   create policy "users send messages" on public.messages for insert to authenticated
     with check (sender_id = auth.uid());
@@ -1252,3 +1255,17 @@ do $ begin
     add constraint messages_content_length_check
     check (char_length(btrim(content)) between 1 and 2000);
 exception when duplicate_object then null; end $;
+
+
+-- Beyond Messages deletion controls
+alter table public.messages add column if not exists deleted_for_sender boolean not null default false;
+alter table public.messages add column if not exists deleted_for_receiver boolean not null default false;
+create or replace function public.delete_beyond_message_for_me(message_id bigint) returns boolean language plpgsql security definer set search_path=public as $$ begin update public.messages set deleted_for_sender=true where id=delete_beyond_message_for_me.message_id and sender_id=auth.uid() and deleted_for_sender=false; if found then return true; end if; update public.messages set deleted_for_receiver=true where id=delete_beyond_message_for_me.message_id and receiver_id=auth.uid() and deleted_for_receiver=false; return found; end; $$;
+create or replace function public.delete_beyond_message_for_everyone(message_id bigint) returns boolean language plpgsql security definer set search_path=public as $$ begin update public.messages set deleted_for_sender=true,deleted_for_receiver=true where id=delete_beyond_message_for_everyone.message_id and sender_id=auth.uid() and deleted_for_sender=false; return found; end; $$;
+create or replace function public.delete_beyond_conversation_for_me(other_user_id uuid) returns bigint language plpgsql security definer set search_path=public as $$ declare changed_count bigint:=0; begin update public.messages set deleted_for_sender=true where sender_id=auth.uid() and receiver_id=delete_beyond_conversation_for_me.other_user_id and deleted_for_sender=false; changed_count:=changed_count+row_count; update public.messages set deleted_for_receiver=true where receiver_id=auth.uid() and sender_id=delete_beyond_conversation_for_me.other_user_id and deleted_for_receiver=false; changed_count:=changed_count+row_count; return changed_count; end; $$;
+revoke all on function public.delete_beyond_message_for_me(bigint) from public;
+revoke all on function public.delete_beyond_message_for_everyone(bigint) from public;
+revoke all on function public.delete_beyond_conversation_for_me(uuid) from public;
+grant execute on function public.delete_beyond_message_for_me(bigint) to authenticated;
+grant execute on function public.delete_beyond_message_for_everyone(bigint) to authenticated;
+grant execute on function public.delete_beyond_conversation_for_me(uuid) to authenticated;
