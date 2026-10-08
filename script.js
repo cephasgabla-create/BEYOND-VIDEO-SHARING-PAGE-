@@ -806,3 +806,10 @@ window.commentVideo=function(postId){
   if(Number.isFinite(numeric)&&numeric>0){beyondRailVideoId=numeric;loadBeyondRailComments()}
   if(typeof beyondOriginalCommentVideo==="function")return beyondOriginalCommentVideo(postId);
 };
+
+document.addEventListener("DOMContentLoaded",()=>{
+  const feed=document.getElementById("feed");
+  if(!feed||typeof beyondRailBindCard!=="function")return;
+  const observer=new MutationObserver(()=>feed.querySelectorAll(".video-card").forEach(beyondRailBindCard));
+  observer.observe(feed,{childList:true});
+});
