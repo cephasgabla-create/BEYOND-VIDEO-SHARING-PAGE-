@@ -798,3 +798,11 @@ async function loadBeyondRailComments(){
  }catch(error){console.error(error);rail.innerHTML='<div class="rail-empty">Comments are temporarily unavailable.</div>'}
 }
 document.addEventListener("DOMContentLoaded",()=>setTimeout(initBeyondDesktopRail,900));
+
+/* Keep the desktop rail synchronized with the active comments video. */
+const beyondOriginalCommentVideo=window.commentVideo;
+window.commentVideo=function(postId){
+  const numeric=Number(postId);
+  if(Number.isFinite(numeric)&&numeric>0){beyondRailVideoId=numeric;loadBeyondRailComments()}
+  if(typeof beyondOriginalCommentVideo==="function")return beyondOriginalCommentVideo(postId);
+};
