@@ -15,7 +15,7 @@ main{max-width:520px;padding:32px}a{display:inline-block;margin-top:16px;padding
   var path=location.pathname;
   if(path===base || path===base+"index.html") return;
   var relative=path.indexOf(base)===0 ? path.slice(base.length) : "";
-  var known=/^(login|signup|profile|upload|search|creator-studio|content-manager|analytics|live-analytics|audience|monetization|notifications|comments-manager|creator-settings|dashboard-customization|database-setup)\.html$/i;
+  var known=/^(login|signup|profile|upload|search|creator-studio|content-manager|analytics|live-analytics|audience|monetization|notifications|comments-manager|creator-settings|dashboard-customization|database-setup|deployment)\.html$/i;
   if(known.test(relative)){ location.replace(base+relative); }
 })();
 </script>
