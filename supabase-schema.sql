@@ -300,18 +300,26 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 
 -- Creator Settings synchronization table
-create table if not exists public.creator_settings (user_id uuid primary key references auth.users(id) on delete cascade, settings jsonb not null default '{}'::jsonb, updated_at timestamptz not null default now());
+create table if not exists public.creator_settings (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  settings jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
 alter table public.creator_settings enable row level security;
-create policy "creator_settings_owner_select" on public.creator_settings for select to authenticated using (user_id = auth.uid());
-create policy "creator_settings_owner_insert" on public.creator_settings for insert to authenticated with check (user_id = auth.uid());
-create policy "creator_settings_owner_update" on public.creator_settings for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+do $$ begin create policy "creator_settings_owner_select" on public.creator_settings for select to authenticated using (user_id = auth.uid()); exception when duplicate_object then null; end $$;
+do $$ begin create policy "creator_settings_owner_insert" on public.creator_settings for insert to authenticated with check (user_id = auth.uid()); exception when duplicate_object then null; end $$;
+do $$ begin create policy "creator_settings_owner_update" on public.creator_settings for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid()); exception when duplicate_object then null; end $$;
 
 -- Dashboard customization: one private settings document per creator.
-create table if not exists public.dashboard_customizations (user_id uuid primary key references auth.users(id) on delete cascade, settings jsonb not null default '{}'::jsonb, updated_at timestamptz not null default now());
+create table if not exists public.dashboard_customizations (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  settings jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
 alter table public.dashboard_customizations enable row level security;
-create policy "dashboard_customizations_owner_select" on public.dashboard_customizations for select to authenticated using (user_id = auth.uid());
-create policy "dashboard_customizations_owner_insert" on public.dashboard_customizations for insert to authenticated with check (user_id = auth.uid());
-create policy "dashboard_customizations_owner_update" on public.dashboard_customizations for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+do $$ begin create policy "dashboard_customizations_owner_select" on public.dashboard_customizations for select to authenticated using (user_id = auth.uid()); exception when duplicate_object then null; end $$;
+do $$ begin create policy "dashboard_customizations_owner_insert" on public.dashboard_customizations for insert to authenticated with check (user_id = auth.uid()); exception when duplicate_object then null; end $$;
+do $$ begin create policy "dashboard_customizations_owner_update" on public.dashboard_customizations for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid()); exception when duplicate_object then null; end $$;
 
 -- Creator moderation: allow video owners to hide comments on their own videos.
 alter table public.comments add column if not exists hidden_by_creator boolean not null default false;
