@@ -272,21 +272,16 @@ async function updateAllFollowButtons(){
  await Promise.all(buttons.map(b=>{const row=b.closest(".creator-row");return row?updateFollowButton(row.querySelector("h3")?.textContent.replace(/^@/,""),b):null}));
 }
 async function showFollowing(){
+ const db=initBeyondDatabase();const user=await getCurrentBeyondUser();
+ if(!db||!user){location.href="login.html";return}
  const following=await getFollowing();
- document.querySelectorAll(".video-card").forEach(card=>card.style.display=following.includes(card.dataset.creator)?"flex":"none");
+ const allowed=new Set(following);
+ document.querySelectorAll(".video-card").forEach(card=>{
+   card.style.display=allowed.has(card.dataset.creator)?"flex":"none";
+ });
  if(!following.length)alert("You are not following anyone yet. Follow a creator first!");
 }
 function showFeed(){document.querySelectorAll(".video-card").forEach(card=>card.style.display="flex");document.getElementById("feed")?.scrollTo({top:0,behavior:"smooth"})}
-
-function updateFollowButton(username,button){
-  if(!button)return;
-  const following=getFollowing().includes(username);
-  button.textContent=following?"Following":"Follow";
-  button.classList.toggle("following",following);
-}
-function updateAllFollowButtons(){document.querySelectorAll(".follow-button").forEach(button=>{const row=button.closest(".creator-row");if(row)updateFollowButton(row.querySelector("h3").textContent.replace("@",""),button)})}
-function showFollowing(){const following=getFollowing();document.querySelectorAll(".video-card").forEach(card=>card.style.display=following.includes(card.dataset.creator)?"flex":"none");if(!following.length)alert("You are not following anyone yet. Follow a creator first!")}
-function showFeed(){document.querySelectorAll(".video-card").forEach(card=>card.style.display="flex");document.getElementById("feed").scrollTo({top:0,behavior:"smooth"})}
 
 function commentVideo(postId){
   currentPostId=postId;
