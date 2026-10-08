@@ -175,3 +175,15 @@ button{cursor:pointer}
 @media(max-width:720px){.live-room{grid-template-columns:1fr;grid-template-rows:auto 1fr auto auto auto auto;height:96vh}.live-stage{min-height:300px}.live-chat{grid-column:1;grid-row:auto;max-height:170px;border-left:0}.live-input{grid-column:1;border-left:0}.live-info{padding:10px 12px}.creator-controls{padding:10px 12px}.control-grid button{font-size:12px}}
 
 .feed-loading{position:fixed;inset:auto 50% 50px auto;transform:translateX(50%);z-index:300;display:flex;align-items:center;gap:9px;padding:11px 16px;background:rgba(20,20,25,.92);border:1px solid var(--border);border-radius:999px;color:var(--text);box-shadow:0 12px 35px rgba(0,0,0,.3);font-size:13px;font-weight:700;backdrop-filter:blur(12px)}.loading-spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.25);border-top-color:var(--accent);border-radius:50%;animation:beyondSpin .7s linear infinite}@keyframes beyondSpin{to{transform:rotate(360deg)}}.video-card[data-db-video-id]{animation:beyondCardIn .35s ease both}@keyframes beyondCardIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}.live-badge{animation:beyondPulse 1.5s infinite}@keyframes beyondPulse{50%{box-shadow:0 0 0 6px rgba(239,68,68,.08)}}
+
+
+.feed-empty{
+  width:min(700px,94%);
+  margin:180px auto 120px;
+  padding:28px;
+  text-align:center;
+  color:var(--muted);
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:18px;
+}
