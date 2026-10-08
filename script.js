@@ -91,6 +91,8 @@ function createRemoteVideoCard(post){
   feed.appendChild(section);
   loadRemoteLikeState(post.id,actions.children[0]);
   loadRemoteCommentCount(post.id,actions.children[1]);
+  subscribeToRemoteVideo(post.id,section);
+  video.addEventListener("play",()=>recordRemoteVideoView(post.id),{once:true});
 }
 
 async function likeRemoteVideo(button,videoId){
@@ -130,6 +132,37 @@ async function loadRemoteCommentCount(videoId,button){
     if(error)throw error;
     button.querySelector("span").textContent=count||0;
   }catch(error){console.warn("Beyond remote comment count unavailable:",error)}
+}
+
+async function recordRemoteVideoView(videoId){
+  const db=initBeyondDatabase();
+  if(!db||!videoId)return;
+  const key="beyondViewed_"+videoId;
+  if(sessionStorage.getItem(key))return;
+  try{
+    const {error}=await db.rpc("increment_video_view",{video_id:videoId});
+    if(error)throw error;
+    sessionStorage.setItem(key,"1");
+  }catch(error){
+    console.warn("Beyond remote view could not be recorded:",error);
+  }
+}
+
+function subscribeToRemoteVideo(videoId,section){
+  const db=initBeyondDatabase();
+  if(!db||!videoId||!section)return;
+  const channel=db.channel("beyond-video-"+videoId)
+    .on("postgres_changes",{event:"INSERT",schema:"public",table:"comments",filter:"video_id=eq."+videoId},payload=>{
+      const button=section.querySelector(".comment-button");
+      if(button)loadRemoteCommentCount(videoId,button);
+      if(currentPostId===videoId)loadComments(videoId);
+    })
+    .on("postgres_changes",{event:"*",schema:"public",table:"likes",filter:"video_id=eq."+videoId},()=>{
+      const button=section.querySelector(".like-button");
+      if(button)loadRemoteLikeState(videoId,button);
+    })
+    .subscribe();
+  section._beyondRealtimeChannel=channel;
 }
 
 function createVideoCard(post){
@@ -301,11 +334,132 @@ function updateAllFollowButtons(){document.querySelectorAll(".follow-button").fo
 function showFollowing(){const following=getFollowing();document.querySelectorAll(".video-card").forEach(card=>card.style.display=following.includes(card.dataset.creator)?"flex":"none");if(!following.length)alert("You are not following anyone yet. Follow a creator first!")}
 function showFeed(){document.querySelectorAll(".video-card").forEach(card=>card.style.display="flex");document.getElementById("feed").scrollTo({top:0,behavior:"smooth"})}
 
-function commentVideo(postId){currentPostId=postId;document.getElementById("commentsPanel").style.display="flex";document.getElementById("commentsOverlay").style.display="block";loadComments(postId)}
-function closeComments(){document.getElementById("commentsPanel").style.display="none";document.getElementById("commentsOverlay").style.display="none";currentPostId=null}
-async function addComment(){const input=document.getElementById("commentInput"),text=input.value.trim();if(!text||currentPostId===null)return;const username=localStorage.getItem("beyondUsername");if(!username){alert("Please log in to comment.");location.href="login.html";return}const db=await openDatabase(),tx=db.transaction("comments","readwrite");tx.objectStore("comments").add({postId:currentPostId,username,text,createdAt:new Date().toISOString()});tx.oncomplete=async()=>{input.value="";loadComments(currentPostId);const db2=await openDatabase();const vr=db2.transaction("videos","readonly").objectStore("videos").get(currentPostId);vr.onsuccess=()=>{const video=vr.result;if(video&&video.username!==username){const nt=db2.transaction("notifications","readwrite");nt.objectStore("notifications").add({username:video.username,type:"comment",actor:username,postId:currentPostId,text:"@"+username+" commented on your video",createdAt:new Date().toISOString(),read:false});}};const card=document.querySelector('[data-post-id="'+currentPostId+'"]');if(card){const b=card.querySelector(".comment-button");loadCommentCount(currentPostId,b)}}}
-async function loadComments(postId){const list=document.getElementById("commentsList");list.innerHTML="<p style='color:#777'>Loading...</p>";const db=await openDatabase(),req=db.transaction("comments","readonly").objectStore("comments").getAll();req.onsuccess=()=>{const comments=req.result.filter(c=>c.postId===postId).reverse();list.innerHTML="";if(!comments.length){list.innerHTML="<p style='color:#777;text-align:center;padding:30px'>No comments yet. Be the first!</p>";return}comments.forEach(createComment)}}
-function createComment(comment){const item=document.createElement("div");item.className="comment";const avatar=document.createElement("div");avatar.className="comment-avatar";avatar.textContent=comment.username.charAt(0).toUpperCase();const content=document.createElement("div");content.className="comment-content";const username=document.createElement("div");username.className="comment-username";username.textContent="@"+comment.username;const text=document.createElement("div");text.className="comment-text";text.textContent=comment.text;content.append(username,text);item.append(avatar,content);document.getElementById("commentsList").appendChild(item)}
+function commentVideo(postId){
+  currentPostId=postId;
+  document.getElementById("commentsPanel").style.display="flex";
+  document.getElementById("commentsOverlay").style.display="block";
+  loadComments(postId);
+}
+
+function closeComments(){
+  document.getElementById("commentsPanel").style.display="none";
+  document.getElementById("commentsOverlay").style.display="none";
+  currentPostId=null;
+}
+
+async function addComment(){
+  const input=document.getElementById("commentInput");
+  const text=input.value.trim();
+  if(!text||currentPostId===null)return;
+
+  const username=localStorage.getItem("beyondUsername");
+  if(!username){alert("Please log in to comment.");location.href="login.html";return}
+
+  try{
+    const db=initBeyondDatabase();
+    const user=await getCurrentBeyondUser();
+
+    if(db&&user&&typeof currentPostId==="number"){
+      const {error}=await db.from("comments").insert({
+        video_id:currentPostId,
+        user_id:user.id,
+        content:text
+      });
+      if(error)throw error;
+      input.value="";
+      await loadComments(currentPostId);
+      const card=document.querySelector('[data-post-id="'+currentPostId+'"]');
+      if(card){
+        const button=card.querySelector(".comment-button");
+        if(button)await loadRemoteCommentCount(currentPostId,button);
+      }
+      return;
+    }
+  }catch(error){
+    console.error("Beyond Supabase comment failed:",error);
+    alert("Beyond could not post your comment right now.");
+    return;
+  }
+
+  const db=await openDatabase();
+  const tx=db.transaction("comments","readwrite");
+  tx.objectStore("comments").add({postId:currentPostId,username,text,createdAt:new Date().toISOString()});
+  tx.oncomplete=async()=>{
+    input.value="";
+    loadComments(currentPostId);
+    const card=document.querySelector('[data-post-id="'+currentPostId+'"]');
+    if(card){
+      const b=card.querySelector(".comment-button");
+      loadCommentCount(currentPostId,b);
+    }
+  };
+}
+
+async function loadComments(postId){
+  const list=document.getElementById("commentsList");
+  list.innerHTML="<p style='color:#777'>Loading...</p>";
+
+  try{
+    const db=initBeyondDatabase();
+    const user=await getCurrentBeyondUser();
+    if(db&&user&&typeof postId==="number"){
+      const {data,error}=await db.from("comments")
+        .select("id,user_id,content,created_at,profiles(username,display_name,avatar_url)")
+        .eq("video_id",postId)
+        .order("created_at",{ascending:true});
+      if(error)throw error;
+      list.innerHTML="";
+      if(!data.length){
+        list.innerHTML="<p style='color:#777;text-align:center;padding:30px'>No comments yet. Be the first!</p>";
+        return;
+      }
+      data.forEach(comment=>createRemoteComment(comment));
+      return;
+    }
+  }catch(error){
+    console.warn("Beyond remote comments unavailable:",error);
+  }
+
+  const localDb=await openDatabase();
+  const req=localDb.transaction("comments","readonly").objectStore("comments").getAll();
+  req.onsuccess=()=>{
+    const comments=req.result.filter(c=>c.postId===postId).reverse();
+    list.innerHTML="";
+    if(!comments.length){
+      list.innerHTML="<p style='color:#777;text-align:center;padding:30px'>No comments yet. Be the first!</p>";
+      return;
+    }
+    comments.forEach(createComment);
+  };
+}
+
+function createRemoteComment(comment){
+  const profile=comment.profiles||{};
+  const username=profile.username||"BeyondUser";
+  const item=document.createElement("div");
+  item.className="comment";
+  const avatar=document.createElement("div");
+  avatar.className="comment-avatar";
+  avatar.textContent=username.charAt(0).toUpperCase();
+  if(profile.avatar_url){
+    avatar.textContent="";
+    avatar.style.backgroundImage="url('"+profile.avatar_url.replace(/'/g,"\\'")+"')";
+    avatar.style.backgroundSize="cover";
+    avatar.style.backgroundPosition="center";
+  }
+  const content=document.createElement("div");
+  content.className="comment-content";
+  const name=document.createElement("div");
+  name.className="comment-username";
+  name.textContent="@"+username;
+  const text=document.createElement("div");
+  text.className="comment-text";
+  text.textContent=comment.content||"";
+  content.append(name,text);
+  item.append(avatar,content);
+  document.getElementById("commentsList").appendChild(item);
+}
+
 let beyondVideoObserver=null;function activateVideoObserver(){if(!("IntersectionObserver" in window))return;if(!beyondVideoObserver){beyondVideoObserver=new IntersectionObserver(entries=>entries.forEach(entry=>{const video=entry.target;if(entry.isIntersecting){video.play().catch(()=>{});const id=video.closest(".video-card")?.dataset.postId||video.closest(".video-card")?.dataset.creator;if(id){let history=JSON.parse(localStorage.getItem("beyondWatchHistory")||"[]");history=[id,...history.filter(x=>x!==id)].slice(0,50);localStorage.setItem("beyondWatchHistory",JSON.stringify(history))}}else video.pause()}),{threshold:.7})}document.querySelectorAll(".video").forEach(v=>{if(!v.dataset.beyondObserved){beyondVideoObserver.observe(v);v.dataset.beyondObserved="true"}})}
 function openDiscover(){const p=document.getElementById("discoverPanel");if(p)p.classList.add("open")}
 function closeDiscover(){const p=document.getElementById("discoverPanel");if(p)p.classList.remove("open")}
