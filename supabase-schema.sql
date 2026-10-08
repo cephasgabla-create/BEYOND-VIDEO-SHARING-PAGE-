@@ -1037,11 +1037,56 @@ $$;
 revoke all on function public.get_beyond_unread_message_count() from public;
 grant execute on function public.get_beyond_unread_message_count() to authenticated;
 
--- Prevent users from changing message ownership or contents while marking messages read.
+-- Secure direct-message read state with RPCs.
+-- Clients may insert messages only as themselves and read only conversations they belong to.
+-- Direct UPDATE is intentionally disabled so clients cannot edit message content,
+-- sender, receiver, or timestamps while marking a message as read.
 drop policy if exists "receivers can mark messages read" on public.messages;
-do $$ begin
-  create policy "receivers can mark messages read" on public.messages
-    for update to authenticated
-    using (receiver_id = auth.uid())
-    with check (receiver_id = auth.uid());
-exception when duplicate_object then null; end $$;
+
+create or replace function public.mark_beyond_message_read(message_id bigint)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $
+declare changed boolean;
+begin
+  update public.messages
+    set read = true
+    where id = mark_beyond_message_read.message_id
+      and receiver_id = auth.uid()
+      and read = false;
+  changed := found;
+  return changed;
+end;
+$;
+
+create or replace function public.mark_beyond_conversation_read(other_user_id uuid)
+returns bigint
+language plpgsql
+security definer
+set search_path = public
+as $
+declare changed_count bigint;
+begin
+  update public.messages
+    set read = true
+    where receiver_id = auth.uid()
+      and sender_id = mark_beyond_conversation_read.other_user_id
+      and read = false;
+  get diagnostics changed_count = row_count;
+  return changed_count;
+end;
+$;
+
+revoke all on function public.mark_beyond_message_read(bigint) from public;
+revoke all on function public.mark_beyond_conversation_read(uuid) from public;
+grant execute on function public.mark_beyond_message_read(bigint) to authenticated;
+grant execute on function public.mark_beyond_conversation_read(uuid) to authenticated;
+
+-- Keep message content bounded and non-empty.
+do $ begin
+  alter table public.messages
+    add constraint messages_content_length_check
+    check (char_length(btrim(content)) between 1 and 2000);
+exception when duplicate_object then null; end $;
