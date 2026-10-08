@@ -980,3 +980,42 @@ exception when duplicate_object then null; end $$;
 -- Clients should not be able to manufacture arbitrary notifications.
 revoke execute on function public.create_beyond_notification(uuid, uuid, text, bigint, bigint, text) from public;
 revoke execute on function public.create_beyond_notification(uuid, uuid, text, bigint, bigint, text) from authenticated;
+
+
+-- Beyond direct-message backend hardening and notifications.
+-- Notify the receiver whenever a direct message is created.
+create or replace function public.beyond_message_notification()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform public.create_beyond_notification(
+    new.receiver_id,
+    new.sender_id,
+    'message',
+    null,
+    null,
+    left(new.content, 500)
+  );
+  return new;
+end;
+$$;
+
+drop trigger if exists beyond_message_notification_trigger on public.messages;
+create trigger beyond_message_notification_trigger
+after insert on public.messages
+for each row execute function public.beyond_message_notification();
+
+-- Keep direct-message realtime delivery enabled.
+alter table public.messages replica identity full;
+do $$ begin
+  alter publication supabase_realtime add table public.messages;
+exception when duplicate_object then null; end $$;
+
+create index if not exists messages_sender_receiver_idx
+  on public.messages(sender_id, receiver_id, created_at desc);
+
+create index if not exists messages_unread_receiver_idx
+  on public.messages(receiver_id, read, created_at desc);
