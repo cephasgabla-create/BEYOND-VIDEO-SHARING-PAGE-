@@ -1,318 +1,98 @@
 const usernameEl=document.getElementById("username");
 const avatarEl=document.getElementById("avatar");
 const bioEl=document.getElementById("bio");
-const followingEl=document.getElementById("following"),followersEl=document.getElementById("followers"),likesEl=document.getElementById("likes");
+const followingEl=document.getElementById("following");
+const followersEl=document.getElementById("followers");
+const likesEl=document.getElementById("likes");
+let beyondProfile=null;
 
-function currentUser(){
-  return localStorage.getItem("beyondUsername")||"BeyondCreator";
+async function requireProfileAuth(){
+  const db=initBeyondDatabase();
+  if(!db){location.href="login.html";return null}
+  const user=await getCurrentBeyondUser();
+  if(!user){location.href="login.html";return null}
+  return {db,user};
 }
-
-function applyCreatorBranding(){
-  const avatarUrl=localStorage.getItem("beyondProfileAvatar")||"";
-  const bannerUrl=localStorage.getItem("beyondProfileBanner")||"";
-  const accent=localStorage.getItem("beyondProfileAccent")||"#ff2d55";
+function applyProfileBranding(profile){
+  const avatarUrl=profile?.avatar_url||"";
+  const bannerUrl=profile?.banner_url||"";
+  const accent=profile?.accent_color||"#ff2d55";
   document.documentElement.style.setProperty("--brand-accent",accent);
   const info=document.querySelector(".profile-info");
-  if(info){info.style.setProperty("--profile-banner",bannerUrl?`url("${bannerUrl.replace(/"/g,"%22")}")`:"none");}
-  if(avatarUrl){avatarEl.textContent="";avatarEl.style.backgroundImage=`url("${avatarUrl.replace(/"/g,"%22")}")`;avatarEl.style.backgroundSize="cover";avatarEl.style.backgroundPosition="center";}
+  if(info)info.style.setProperty("--profile-banner",bannerUrl?'url("'+bannerUrl.replace(/"/g,"%22")+'")':"none");
+  const name=profile?.username||"B";
+  avatarEl.textContent=avatarUrl?"":name.charAt(0).toUpperCase();
+  avatarEl.style.backgroundImage=avatarUrl?'url("'+avatarUrl.replace(/"/g,"%22")+'")':"";
+  avatarEl.style.backgroundSize="cover";
+  avatarEl.style.backgroundPosition="center";
 }
-
 async function loadProfile(){
-  const u=currentUser();
-  usernameEl.textContent="@"+u;
-  avatarEl.textContent=u.charAt(0).toUpperCase();
-  bioEl.textContent=localStorage.getItem("beyondBio")||"Welcome to my Beyond profile 🚀";
-  applyCreatorBranding();
-
+  const auth=await requireProfileAuth();
+  if(!auth)return;
   try{
-    if(typeof initBeyondDatabase==="function" && typeof getBeyondOwnProfile==="function"){
-      const db=initBeyondDatabase();
-      if(db){
-        const authUser=await getCurrentBeyondUser();
-        if(authUser){
-          const profile=await getBeyondOwnProfile();
-          if(profile){
-            const name=profile.username||profile.display_name||u;
-            usernameEl.textContent="@"+name;
-            avatarEl.textContent=(name.charAt(0)||"B").toUpperCase();
-            bioEl.textContent=profile.bio||"Welcome to my Beyond profile 🚀";
-            localStorage.setItem("beyondUsername",name);
-            localStorage.setItem("beyondBio",profile.bio||"");
-            if(profile.avatar_url && !localStorage.getItem("beyondProfileAvatar")){
-              avatarEl.textContent="";
-              avatarEl.style.backgroundImage="url('"+profile.avatar_url.replace(/'/g,"\\'")+"')";
-              avatarEl.style.backgroundSize="cover";
-              avatarEl.style.backgroundPosition="center";
-            }
-          }
-        }
-      }
-    }
-  }catch(error){
-    console.warn("Beyond Supabase profile unavailable:",error);
-  }
-
-  await loadFollowStats();
-  loadLikeCount();
-  loadNotifications();
-  loadVideos();
-  toggleOwnFollowInfo();
+    const {data:profile,error}=await auth.db.from("profiles").select("id,username,display_name,bio,avatar_url,banner_url,accent_color").eq("id",auth.user.id).single();
+    if(error)throw error;
+    beyondProfile=profile;
+    const name=profile.username||profile.display_name||auth.user.email?.split("@")[0]||"Beyond User";
+    usernameEl.textContent="@"+name;
+    bioEl.textContent=profile.bio||"Welcome to my Beyond profile 🚀";
+    applyProfileBranding(profile);
+    await Promise.all([loadFollowStats(auth.db,auth.user.id),loadLikeCount(auth.db,auth.user.id),loadVideos(auth.db,auth.user.id)]);
+    toggleOwnFollowInfo();
+  }catch(error){console.error("Beyond profile load failed:",error);bioEl.textContent="Could not load your profile. Please try again."}
 }
-
-async function loadLikeCount(){
-  try{
-    if(typeof initBeyondDatabase==="function" && typeof getCurrentBeyondUser==="function"){
-      const db=initBeyondDatabase();
-      const authUser=db?await getCurrentBeyondUser():null;
-      if(db&&authUser){
-        const {data:videos,error:videoError}=await db.from("videos").select("id").eq("user_id",authUser.id);
-        if(!videoError){
-          const ids=(videos||[]).map(v=>v.id);
-          if(!ids.length){likesEl.textContent="0";return;}
-          const {count,error}=await db.from("likes").select("video_id",{count:"exact",head:true}).in("video_id",ids);
-          if(!error){likesEl.textContent=count||0;return;}
-        }
-      }
-    }
-  }catch(error){
-    console.warn("Beyond Supabase like count unavailable:",error);
-  }
-
-  const db=await openDB();
-  const videoReq=db.transaction("videos","readonly").objectStore("videos").getAll();
-  videoReq.onsuccess=()=>{
-    const ids=videoReq.result.filter(v=>v.username===currentUser()).map(v=>v.id);
-    const likeReq=db.transaction("likes","readonly").objectStore("likes").getAll();
-    likeReq.onsuccess=()=>likesEl.textContent=likeReq.result.filter(l=>ids.includes(l.postId)).length;
-  };
+async function loadLikeCount(db,userId){
+  const {data:videos,error:videoError}=await db.from("videos").select("id").eq("user_id",userId);
+  if(videoError)throw videoError;
+  const ids=(videos||[]).map(v=>v.id);
+  if(!ids.length){likesEl.textContent="0";return}
+  const {count,error}=await db.from("likes").select("video_id",{count:"exact",head:true}).in("video_id",ids);
+  if(error)throw error;
+  likesEl.textContent=String(count||0);
 }
-
-function getFollowingList(){
-  try{return JSON.parse(localStorage.getItem("beyondFollowing")||"[]");}
-  catch{return [];}
+async function loadFollowStats(db,userId){
+  const stats=await getBeyondFollowStatsByUserId(userId);
+  followingEl.textContent=String(stats.following);
+  followersEl.textContent=String(stats.followers);
 }
-
-function getFollowersMap(){
-  try{return JSON.parse(localStorage.getItem("beyondFollowers")||"{}");}
-  catch{return {};}
+async function loadVideos(db,userId){
+  const {data,error}=await db.from("videos").select("id,video_url,caption,created_at").eq("user_id",userId).eq("status","published").order("created_at",{ascending:false});
+  if(error)throw error;
+  renderProfileVideos(data||[]);
 }
-
-function saveFollowersMap(map){
-  localStorage.setItem("beyondFollowers",JSON.stringify(map));
-}
-
-function getFollowersFor(username){
-  const map=getFollowersMap();
-  return Array.isArray(map[username])?map[username]:[];
-}
-
-async function loadFollowStats(){
-  const user=currentUser();
-  followingEl.textContent=getFollowingList().length;
-  followersEl.textContent=getFollowersFor(user).length;
-
-  try{
-    if(typeof initBeyondDatabase==="function" && typeof getCurrentBeyondUser==="function" && typeof getBeyondFollowStatsByUserId==="function"){
-      const db=initBeyondDatabase();
-      if(db){
-        const authUser=await getCurrentBeyondUser();
-        if(authUser){
-          const stats=await getBeyondFollowStatsByUserId(authUser.id);
-          followingEl.textContent=stats.following;
-          followersEl.textContent=stats.followers;
-          toggleOwnFollowInfo();
-        }
-      }
-    }
-  }catch(error){
-    console.warn("Beyond Supabase follower stats unavailable:",error);
-  }
-}
-
-async function loadVideos(){
-  try{
-    if(typeof initBeyondDatabase==="function" && typeof getCurrentBeyondUser==="function"){
-      const db=initBeyondDatabase();
-      const authUser=db?await getCurrentBeyondUser():null;
-      if(db&&authUser){
-        const {data:posts,error}=await db.from("videos").select("id,video_url,caption,created_at").eq("user_id",authUser.id).order("created_at",{ascending:false});
-        if(!error){
-          renderProfileVideos(posts||[]);
-          return;
-        }
-      }
-    }
-  }catch(error){
-    console.warn("Beyond Supabase profile videos unavailable:",error);
-  }
-
-  const db=await openDB();
-  const req=db.transaction("videos","readonly").objectStore("videos").getAll();
-  req.onsuccess=()=>{
-    renderProfileVideos(req.result.filter(p=>p.username===currentUser()).reverse());
-  };
-}
-
 function renderProfileVideos(posts){
-  const container=document.getElementById("profileVideos");
-  if(!container)return;
+  const container=document.getElementById("profileVideos");if(!container)return;
   container.innerHTML="";
-
-  if(!posts.length){
-    const empty=document.createElement("p");
-    empty.id="noVideos";
-    empty.textContent="You haven't posted any videos yet.";
-    container.appendChild(empty);
-    return;
-  }
-
-  posts.forEach(p=>{
-    const item=document.createElement("div");
-    item.className="video-item";
-
-    const v=document.createElement("video");
-    v.muted=true;
-    v.loop=true;
-    v.playsInline=true;
-    v.controls=true;
-    if(p.video instanceof Blob) v.src=URL.createObjectURL(p.video);
-    else if(p.video_url) v.src=p.video_url;
-
-    const o=document.createElement("div");
-    o.className="video-overlay";
-    o.textContent=p.caption||"";
-
-    item.append(v,o);
-    container.appendChild(item);
-  });
+  if(!posts.length){container.innerHTML="<p id='noVideos'>You haven't posted any videos yet.</p>";return}
+  posts.forEach(p=>{const item=document.createElement("div");item.className="video-item";const v=document.createElement("video");v.muted=true;v.loop=true;v.playsInline=true;v.controls=true;v.src=p.video_url||"";const o=document.createElement("div");o.className="video-overlay";o.textContent=p.caption||"";item.append(v,o);container.appendChild(item)})
 }
-
-function openDB(){
-  return new Promise((resolve,reject)=>{
-    const r=indexedDB.open("BeyondDatabase",4);
-    r.onupgradeneeded=e=>{
-      const db=e.target.result;
-      if(!db.objectStoreNames.contains("videos")) db.createObjectStore("videos",{keyPath:"id",autoIncrement:true});
-      if(!db.objectStoreNames.contains("comments")) db.createObjectStore("comments",{keyPath:"id",autoIncrement:true});
-      if(!db.objectStoreNames.contains("likes")) db.createObjectStore("likes",{keyPath:"key"});
-      if(!db.objectStoreNames.contains("notifications")) db.createObjectStore("notifications",{keyPath:"id",autoIncrement:true});
-    };
-    r.onsuccess=()=>resolve(r.result);
-    r.onerror=()=>reject(r.error);
-  });
-}
-
 async function editProfile(){
-  const old=localStorage.getItem("beyondBio")||"";
-  const value=prompt("Enter your new bio:",old);
-  if(value===null)return;
-  if(value.length>80){
-    alert("Your bio must be 80 characters or less.");
-    return;
-  }
-
-  localStorage.setItem("beyondBio",value);
-  bioEl.textContent=value;
-
+  const auth=await requireProfileAuth();if(!auth)return;
+  const value=prompt("Enter your new bio:",beyondProfile?.bio||"");if(value===null)return;
+  if(value.length>80){alert("Your bio must be 80 characters or less.");return}
   try{
-    if(typeof updateBeyondOwnProfile==="function"){
-      const db=initBeyondDatabase();
-      const authUser=await getCurrentBeyondUser();
-      if(db&&authUser){
-        await updateBeyondOwnProfile({
-          username:currentUser(),
-          display_name:currentUser(),
-          bio:value
-        });
-      }
-    }
-  }catch(error){
-    console.warn("Beyond profile save warning:",error);
-    alert("Your bio was saved locally, but Supabase could not save it.");
-  }
+    beyondProfile=await updateBeyondOwnProfile({username:beyondProfile.username,display_name:beyondProfile.display_name||beyondProfile.username,bio:value,avatar_url:beyondProfile.avatar_url,banner_url:beyondProfile.banner_url,accent_color:beyondProfile.accent_color});
+    bioEl.textContent=beyondProfile.bio||"";
+  }catch(error){console.error(error);alert("Could not save your profile to Supabase.")}
 }
-
-async function loadNotifications(){const db=await openDB();const req=db.transaction("notifications","readonly").objectStore("notifications").getAll();req.onsuccess=()=>{const count=req.result.filter(n=>n.username===currentUser()&&!n.read).length;const b=document.getElementById("notificationButton");if(b)b.textContent=count?"🔔 "+count:"🔔 Notifications"};}
-
-function toggleOwnFollowInfo(){
-  const summary=document.getElementById("followSummary");
-  if(!summary)return;
-  summary.textContent=followingEl.textContent+" following • "+followersEl.textContent+" followers";
-}
-
-function openNotifications(){location.href="notifications.html";}
-
-async function showLikedVideos(){
-  const db=await openDB();
-  const tx=db.transaction(["likes","videos"],"readonly");
-  const likesStore=tx.objectStore("likes");
-  const videosStore=tx.objectStore("videos");
-  const likesReq=likesStore.getAll();
-  const videosReq=videosStore.getAll();
-
-  likesReq.onsuccess=()=>{
-    videosReq.onsuccess=()=>{
-      const current=localStorage.getItem("beyondUsername");
-      const likedIds=new Set(likesReq.result.filter(l=>l.username===current).map(l=>l.postId));
-      const likedVideos=videosReq.result.filter(v=>likedIds.has(v.id)).reverse();
-      const container=document.getElementById("profileVideos");
-      if(!container)return;
-      container.innerHTML="";
-
-      if(!likedVideos.length){
-        const empty=document.createElement("p");
-        empty.id="noVideos";
-        empty.textContent="You haven't liked any videos yet.";
-        container.appendChild(empty);
-        return;
-      }
-
-      likedVideos.forEach(p=>{
-        const item=document.createElement("div");
-        item.className="video-item";
-
-        const v=document.createElement("video");
-        v.muted=true;
-        v.loop=true;
-        v.playsInline=true;
-        v.controls=true;
-        if(p.video instanceof Blob){
-          v.src=URL.createObjectURL(p.video);
-        }else if(p.video_url){
-          v.src=p.video_url;
-        }
-
-        const o=document.createElement("div");
-        o.className="video-overlay";
-        o.textContent=p.caption||"";
-
-        item.append(v,o);
-        container.appendChild(item);
-      });
-    };
-  };
-}
-
+function toggleOwnFollowInfo(){const summary=document.getElementById("followSummary");if(summary)summary.textContent=followingEl.textContent+" following • "+followersEl.textContent+" followers"}
+function openNotifications(){location.href="notifications.html"}
 function goHome(){location.href="index.html"}
 function openUpload(){location.href="upload.html"}
 function openSearch(){location.href="search.html"}
-
-async function logout(){
-  if(!confirm("Log out of Beyond?")) return;
-
-  try{
-    if(typeof initBeyondDatabase==="function"){
-      const db=initBeyondDatabase();
-      if(db) await db.auth.signOut();
-    }
-  }catch(error){
-    console.warn("Beyond Supabase sign-out warning:",error);
-  }finally{
-    localStorage.removeItem("beyondLoggedIn");
-    localStorage.removeItem("beyondUsername");
-    localStorage.removeItem("beyondEmail");
-    location.href="index.html";
-  }
+async function showLikedVideos(){
+  const auth=await requireProfileAuth();if(!auth)return;
+  const {data:likes,error}=await auth.db.from("likes").select("video_id").eq("user_id",auth.user.id);
+  if(error){alert("Could not load liked videos.");return}
+  const ids=(likes||[]).map(x=>x.video_id);const container=document.getElementById("profileVideos");if(!container)return;
+  if(!ids.length){container.innerHTML="<p id='noVideos'>You haven't liked any videos yet.</p>";return}
+  const {data:videos,error:videoError}=await auth.db.from("videos").select("id,video_url,caption,created_at").in("id",ids).order("created_at",{ascending:false});
+  if(videoError){alert("Could not load liked videos.");return}
+  renderProfileVideos(videos||[]);
 }
-
+async function logout(){
+  if(!confirm("Log out of Beyond?"))return;
+  try{const db=initBeyondDatabase();if(db)await db.auth.signOut()}catch(error){console.warn(error)}
+  localStorage.removeItem("beyondLoggedIn");localStorage.removeItem("beyondUsername");localStorage.removeItem("beyondEmail");sessionStorage.removeItem("beyondLoggedIn");location.href="index.html";
+}
 loadProfile();
