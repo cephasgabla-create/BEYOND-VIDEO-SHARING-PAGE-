@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Creator Profile & Branding - Beyond</title>
+<link rel="stylesheet" href="creator-branding.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="back" href="creator-studio.html">← Creator Studio</a>
+  <div class="brand"><span class="logo">B</span><div><small>BEYOND</small><h1>Profile & Branding</h1></div></div>
+  <a class="view" href="profile.html">View profile ↗</a>
+</header>
+<main>
+  <section class="hero">
+    <div class="banner" id="previewBanner">
+      <div class="banner-actions"><button type="button" id="clearBanner">Remove banner</button></div>
+    </div>
+    <div class="profile-preview">
+      <div class="avatar" id="previewAvatar">B</div>
+      <div><strong id="previewName">Beyond Creator</strong><span id="previewHandle">@BeyondCreator</span><p id="previewBio">Welcome to my Beyond profile 🚀</p></div>
+    </div>
+  </section>
+  <section class="layout">
+    <form class="panel" id="brandingForm">
+      <div class="panel-title"><div><small>IDENTITY</small><h2>Creator profile</h2></div></div>
+      <label>Display name<input id="displayName" maxlength="40" required></label>
+      <label>Username<input id="username" maxlength="30" required></label>
+      <label>Bio <span id="bioCount">0/80</span><textarea id="bio" maxlength="80" rows="3"></textarea></label>
+      <label>Avatar image URL<input id="avatarUrl" type="url" placeholder="https://..."></label>
+      <label>Banner image URL<input id="bannerUrl" type="url" placeholder="https://..."></label>
+      <label>Brand accent <input id="accent" type="color" value="#ff2d55"></label>
+      <div class="actions"><button type="submit" class="primary">Save branding</button><button type="button" id="reset" class="secondary">Reset</button></div>
+      <p id="status" class="status" aria-live="polite"></p>
+    </form>
+    <aside class="panel tips">
+      <small>BRANDING</small><h2>Make your Beyond profile yours.</h2>
+      <ul><li>Use a clear creator name and short bio.</li><li>Keep your banner and avatar URLs publicly accessible.</li><li>Your accent color is applied to the profile interface.</li><li>Profile settings are saved locally so GitHub Pages works without a server.</li></ul>
+    </aside>
+  </section>
+</main>
+<script src="creator-branding.js"></script>
+</body>
+</html>
