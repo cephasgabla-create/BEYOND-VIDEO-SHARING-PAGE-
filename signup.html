@@ -1,11 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sign Up - Beyond</title><link rel="stylesheet" href="login.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="supabase.js"></script></head>
-<body><main class="auth"><h1>Beyond</h1><h2>Create account</h2>
-<form id="signupForm">
-<input id="username" type="text" placeholder="Username" minlength="3" maxlength="30" required>
-<input id="email" type="email" placeholder="Email" required>
-<input id="password" type="password" placeholder="Password (6+ characters)" minlength="6" required>
-<input id="confirmPassword" type="password" placeholder="Confirm password" minlength="6" required>
-<p id="signupMessage" aria-live="polite"></p><button type="submit">Create account</button>
-</form><p>Already have an account? <a href="login.html">Log in</a></p><p><a href="index.html">← Back to Beyond Home</a></p></main><script src="signup.js"></script></body></html>
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Sign Up - Beyond</title><link rel="stylesheet" href="signup.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="supabase.js"></script>
+</head>
+<body><main class="auth-page"><section class="auth-card">
+<a class="brand" href="index.html">Beyond</a><h1>Create your account</h1><p class="subtitle">Join Beyond and start sharing your moments.</p>
+<form id="signupForm" novalidate>
+<label for="username">Username</label><input id="username" type="text" minlength="3" maxlength="30" autocomplete="username" placeholder="yourname" required>
+<label for="email">Email</label><input id="email" type="email" autocomplete="email" required>
+<label for="password">Password</label><input id="password" type="password" minlength="6" autocomplete="new-password" required>
+<label for="confirmPassword">Confirm password</label><input id="confirmPassword" type="password" minlength="6" autocomplete="new-password" required>
+<p id="signupMessage" class="message" aria-live="polite"></p><button id="signupButton" type="submit">Create account</button>
+</form><p class="switch">Already have an account? <a href="login.html">Log in</a></p><a class="back" href="index.html">← Back to Beyond</a>
+</section></main><script src="signup.js"></script></body></html>
