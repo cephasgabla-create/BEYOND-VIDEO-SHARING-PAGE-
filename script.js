@@ -484,9 +484,19 @@ async function openLive(){
     window.beyondLiveRoomId=cfg.roomId;
     const title=document.getElementById("liveTitle");if(title)title.textContent=cfg.title||"Beyond Live";
     subscribeBeyondLiveRoom(cfg.roomId);
+    if(!window.beyondLiveViewerJoined&&typeof updateLiveViewerCount==="function"){
+      try{await updateLiveViewerCount(cfg.roomId,1);window.beyondLiveViewerJoined=true}catch(error){console.warn("Beyond Live viewer count unavailable:",error)}
+    }
   }
 }
-function closeLive(){document.getElementById("livePanel")?.classList.remove("open");const o=document.getElementById("liveOverlay");if(o)o.style.display="none";stopLiveSimulation();if(beyondLiveChannel&&window.beyondDB){window.beyondDB.removeChannel(beyondLiveChannel);beyondLiveChannel=null}}
+async function closeLive(){
+  const roomId=window.beyondLiveRoomId;
+  if(roomId&&window.beyondLiveViewerJoined&&typeof updateLiveViewerCount==="function"){
+    try{await updateLiveViewerCount(roomId,-1)}catch(error){console.warn("Beyond Live viewer leave could not be recorded:",error)}
+    window.beyondLiveViewerJoined=false;
+  }
+  document.getElementById("livePanel")?.classList.remove("open");const o=document.getElementById("liveOverlay");if(o)o.style.display="none";stopLiveSimulation();if(beyondLiveChannel&&window.beyondDB){window.beyondDB.removeChannel(beyondLiveChannel);beyondLiveChannel=null}
+}
 function startLiveSimulation(){stopLiveSimulation()}
 function stopLiveSimulation(){if(liveTimer!==null){clearInterval(liveTimer);liveTimer=null}}
 function subscribeBeyondLiveRoom(roomId){
@@ -513,7 +523,16 @@ function toggleLiveMic(btn){btn.textContent=btn.textContent.includes("On")?"🔇
 function toggleLiveCamera(btn){btn.textContent=btn.textContent.includes("On")?"📵 Camera Off":"📹 Camera On"}
 function muteLiveChat(btn){btn.textContent=btn.textContent.includes("On")?"🚫 Chat Off":"💬 Chat On";document.getElementById("liveChatInput").disabled=btn.textContent.includes("Off")}
 function shareLive(){if(navigator.share)navigator.share({title:"Beyond Live",text:"Join my Beyond live room!"}).catch(()=>{});else alert("Live link copied!")}
-function endLive(){const status=document.getElementById("liveStatus");if(status)status.textContent="Live ended by the creator.";stopLiveSimulation();closeLive()}
+async function endLive(){
+  const roomId=window.beyondLiveRoomId;
+  const status=document.getElementById("liveStatus");if(status)status.textContent="Live ended by the creator.";
+  if(roomId&&typeof endDatabaseLive==="function"){
+    try{await endDatabaseLive(roomId)}catch(error){console.warn("Beyond Live could not end the database room:",error)}
+  }
+  stopLiveSimulation();await closeLive();
+  const cfg=(()=>{try{return JSON.parse(localStorage.getItem("beyondLiveConfig")||"{}")}catch{return {}}})();
+  if(cfg.roomId===roomId){cfg.active=false;localStorage.setItem("beyondLiveConfig",JSON.stringify(cfg))}
+}
 
 async function loadDatabaseFeed(){
  const db=window.beyondDB||initBeyondDatabase();
