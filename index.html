@@ -26,6 +26,35 @@
 </script>
 </head>
 <body>
+  <aside class="beyond-desktop-sidebar" id="beyondDesktopSidebar">
+    <div class="beyond-side-brand"><span class="beyond-brand-mark">B</span><span>Beyond</span></div>
+    <button class="beyond-side-search" onclick="openSearch()">⌕ <span>Search</span></button>
+    <nav class="beyond-side-nav" aria-label="Beyond navigation">
+      <button class="active" onclick="showFeed()"><span>⌂</span>For You</button>
+      <button onclick="showFollowing()"><span>☆</span>Following</button>
+      <button onclick="openDiscover()"><span>◈</span>Explore</button>
+      <button onclick="openMessages()"><span>✉</span>Messages</button>
+      <button onclick="toggleBeyondNotificationPanel(event)"><span>♧</span>Activity <b id="beyondSideNotificationBadge" class="side-badge" hidden>0</b></button>
+      <button onclick="openLive()"><span>◉</span>LIVE</button>
+      <button onclick="openUpload()"><span>＋</span>Upload</button>
+      <button onclick="openProfile()"><span>◯</span>Profile</button>
+      <button onclick="openMore()"><span>•••</span>More</button>
+    </nav>
+    <div class="beyond-side-account" onclick="openProfile()">
+      <div class="side-account-avatar" id="sideAccountAvatar">B</div>
+      <div><strong>My Beyond</strong><span>View profile</span></div>
+    </div>
+  </aside>
+
+  <aside class="beyond-right-rail" id="beyondRightRail">
+    <div class="rail-top">
+      <div class="rail-tabs"><button class="active" id="railCommentsTab">Comments</button><button id="railRecommendTab">You may like</button></div>
+    </div>
+    <div id="beyondRailContent" class="rail-content">
+      <div class="rail-empty">Select a video to see comments and recommendations.</div>
+    </div>
+  </aside>
+
   <header class="top-bar">
     <div class="logo">Beyond</div>
     <div class="nav-links">
