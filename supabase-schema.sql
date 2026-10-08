@@ -352,3 +352,26 @@ alter table public.follows replica identity full;
 do $$ begin
   alter publication supabase_realtime add table public.follows;
 exception when duplicate_object then null; end $$;
+
+
+-- Safe realtime viewer-count RPC for Beyond Live.
+create or replace function public.change_live_viewer_count(room_id bigint, delta integer)
+returns bigint
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare new_count bigint;
+begin
+  if delta not in (-1, 1) then
+    raise exception 'Viewer count delta must be -1 or 1';
+  end if;
+  update public.live_rooms
+    set viewer_count = greatest(0, coalesce(viewer_count,0) + delta)
+    where id = change_live_viewer_count.room_id
+      and active = true
+    returning viewer_count into new_count;
+  return coalesce(new_count,0);
+end;
+$$;
+grant execute on function public.change_live_viewer_count(bigint, integer) to anon, authenticated;
