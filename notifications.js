@@ -1,4 +1,4 @@
-let items=[],currentFilter="all",usingSupabase=false,realtimeChannel=null;
+let items=[],currentFilter="all",usingSupabase=false,realtimeChannel=null,realtimeTimer=null,loading=false;
 document.addEventListener("DOMContentLoaded",init);
 function safe(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
 function read(){try{const a=JSON.parse(localStorage.getItem("beyondNotifications")||"[]");return Array.isArray(a)?a:[]}catch(e){return[]}}
@@ -15,6 +15,8 @@ function init(){
 }
 function getSupabase(){try{return window.beyondDB||(typeof initBeyondDatabase==="function"?initBeyondDatabase():null)}catch(e){return null}}
 async function loadNotifications(){
+  if(loading)return;
+  loading=true;
   const db=getSupabase();
   if(db){
     try{
@@ -24,14 +26,16 @@ async function loadNotifications(){
         const {data:videos,error:vError}=await db.from("videos").select("id,caption,created_at").eq("user_id",user.id).order("created_at",{ascending:false});
         if(vError)throw vError;
         const ids=(videos||[]).map(v=>v.id);
-        const [followResult,likeResult,commentResult]=await Promise.all([
+        const [followResult,likeResult,commentResult,liveResult]=await Promise.all([
           db.from("follows").select("follower_id,following_id,created_at").eq("following_id",user.id).order("created_at",{ascending:false}).limit(100),
           ids.length?db.from("likes").select("user_id,video_id,created_at").in("video_id",ids).order("created_at",{ascending:false}).limit(100):Promise.resolve({data:[],error:null}),
-          ids.length?db.from("comments").select("id,user_id,video_id,content,created_at").in("video_id",ids).order("created_at",{ascending:false}).limit(100):Promise.resolve({data:[],error:null})
+          ids.length?db.from("comments").select("id,user_id,video_id,content,created_at").in("video_id",ids).order("created_at",{ascending:false}).limit(100):Promise.resolve({data:[],error:null}),
+          db.from("live_rooms").select("id,title,category,active,started_at,ended_at,viewer_count").eq("host_id",user.id).order("started_at",{ascending:false}).limit(50)
         ]);
         if(followResult.error)throw followResult.error;
         if(likeResult.error)throw likeResult.error;
         if(commentResult.error)throw commentResult.error;
+        if(liveResult.error)console.warn("Beyond live activity unavailable:",liveResult.error);
         const actorIds=[...new Set([
           ...(followResult.data||[]).map(x=>x.follower_id),
           ...(likeResult.data||[]).map(x=>x.user_id),
@@ -59,6 +63,9 @@ async function loadNotifications(){
           const profile=profileMap.get(x.user_id),actor=profile?.username||profile?.display_name||"Someone",v=videoMap.get(x.video_id);
           events.push({id:"comment:"+x.id,type:"comment",title:actor,message:"commented on your video"+(v?.caption?' "'+v.caption+'"':": "+x.content),createdAt:x.created_at,read:oldRead.has("comment:"+x.id)});
         });
+        (liveResult.data||[]).forEach(x=>{
+          events.push({id:"live:"+x.id,type:"live",title:x.title||"Live session",message:x.active?"Your live session is active.":"Your live session ended.",createdAt:x.ended_at||x.started_at,read:oldRead.has("live:"+x.id)});
+        });
         (videos||[]).forEach(v=>{
           events.push({id:"video:"+v.id,type:"activity",title:"Video published",message:v.caption||"You uploaded a Beyond video.",createdAt:v.created_at,read:oldRead.has("video:"+v.id)});
         });
@@ -69,14 +76,16 @@ async function loadNotifications(){
   }
   usingSupabase=false;render();
 }
+function scheduleNotificationReload(){if(realtimeTimer)return;realtimeTimer=setTimeout(()=>{realtimeTimer=null;loadNotifications()},500)}
 function subscribeRealtime(db,userId){
   if(realtimeChannel)db.removeChannel(realtimeChannel);
   realtimeChannel=db.channel("beyond-notifications-"+userId)
-    .on("postgres_changes",{event:"*",schema:"public",table:"follows",filter:"following_id=eq."+userId},()=>loadNotifications())
-    .on("postgres_changes",{event:"*",schema:"public",table:"videos",filter:"user_id=eq."+userId},()=>loadNotifications())
-    .on("postgres_changes",{event:"*",schema:"public",table:"likes"},()=>loadNotifications())
-    .on("postgres_changes",{event:"*",schema:"public",table:"comments"},()=>loadNotifications())
-    .subscribe();
+    .on("postgres_changes",{event:"*",schema:"public",table:"follows",filter:"following_id=eq."+userId},()=>scheduleNotificationReload())
+    .on("postgres_changes",{event:"*",schema:"public",table:"videos",filter:"user_id=eq."+userId},()=>scheduleNotificationReload())
+    .on("postgres_changes",{event:"*",schema:"public",table:"likes"},()=>scheduleNotificationReload())
+    .on("postgres_changes",{event:"*",schema:"public",table:"comments"},()=>scheduleNotificationReload())
+    .on("postgres_changes",{event:"*",schema:"public",table:"live_rooms",filter:"host_id=eq."+userId},()=>scheduleNotificationReload())
+    .subscribe(status=>{if(status==="CHANNEL_ERROR"||status==="TIMED_OUT")setTimeout(()=>subscribeRealtime(db,userId),5000)});
 }
 function filtered(){return items.filter(x=>currentFilter==="all"||(currentFilter==="unread"&&!x.read)||typeOf(x)===currentFilter)}
 function render(){
@@ -95,3 +104,5 @@ function render(){
 function toggleRead(i){if(!items[i])return;items[i].read=!items[i].read;save();render()}
 function markAllRead(){items=items.map(x=>({...x,read:true}));save();render()}
 function clearNotifications(){if(!items.length)return;if(!confirm("Clear all recorded activity?"))return;items=[];save();render()}
+
+window.addEventListener("beforeunload",()=>{if(realtimeTimer)clearTimeout(realtimeTimer);if(realtimeChannel&&db){try{db.removeChannel(realtimeChannel)}catch(e){}}});
