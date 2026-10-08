@@ -1,4 +1,8 @@
-let contentItems=[];let currentEditId=null;let currentFilter="all";let usingSupabase=false;\nconst selectedIds=new Set();\nlet currentPage=1;\nconst PAGE_SIZE=8;\nlet realtimeChannel=null;
+let contentItems=[];let currentEditId=null;let currentFilter="all";let usingSupabase=false;
+const selectedIds=new Set();
+let currentPage=1;
+const PAGE_SIZE=8;
+let realtimeChannel=null;
 
 document.addEventListener("DOMContentLoaded",()=>{
   document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
@@ -8,6 +12,12 @@ document.addEventListener("DOMContentLoaded",()=>{
   document.getElementById("searchContent").oninput=render;
   document.getElementById("sortContent").onchange=render;
   document.getElementById("refreshContent")?.addEventListener("click",loadContent);
+  document.getElementById("selectAll")?.addEventListener("change",togglePageSelection);
+  document.getElementById("bulkPublish")?.addEventListener("click",()=>bulkSetStatus("published"));
+  document.getElementById("bulkDraft")?.addEventListener("click",()=>bulkSetStatus("draft"));
+  document.getElementById("bulkDelete")?.addEventListener("click",bulkDelete);
+  document.getElementById("prevPage")?.addEventListener("click",()=>{currentPage=Math.max(1,currentPage-1);render()});
+  document.getElementById("nextPage")?.addEventListener("click",()=>{currentPage++;render()});
   loadContent();
 });
 
