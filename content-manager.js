@@ -1,4 +1,4 @@
-let contentItems=[];let currentEditId=null;let currentFilter="all";let usingSupabase=false;
+let contentItems=[];let currentEditId=null;let currentFilter="all";let usingSupabase=false;\nconst selectedIds=new Set();\nlet currentPage=1;\nconst PAGE_SIZE=8;\nlet realtimeChannel=null;
 
 document.addEventListener("DOMContentLoaded",()=>{
   document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
@@ -100,87 +100,88 @@ function getAll(db,name){
 }
 function compact(n){return n>999?((n/1000).toFixed(n>9999?0:1)+"K"):String(n)}
 
+function filteredItems(){
+  const q=document.getElementById("searchContent").value.trim().toLowerCase(),sort=document.getElementById("sortContent").value;
+  const items=contentItems.filter(v=>(currentFilter==="all"||v.status===currentFilter)&&((v.caption||"").toLowerCase().includes(q)||(v.hashtags||"").toLowerCase().includes(q)));
+  items.sort((a,b)=>sort==="oldest"?new Date(a.createdAt)-new Date(b.createdAt):sort==="likes"?b.likeCount-a.likeCount:new Date(b.createdAt)-new Date(a.createdAt));
+  return items;
+}
 function render(){
   const list=document.getElementById("contentList"),empty=document.getElementById("emptyState");
-  const q=document.getElementById("searchContent").value.trim().toLowerCase(),sort=document.getElementById("sortContent").value;
-  let items=contentItems.filter(v=>(currentFilter==="all"||v.status===currentFilter)&&((v.caption||"").toLowerCase().includes(q)||(v.hashtags||"").toLowerCase().includes(q)));
-  items.sort((a,b)=>sort==="oldest"?new Date(a.createdAt)-new Date(b.createdAt):sort==="likes"?b.likeCount-a.likeCount:new Date(b.createdAt)-new Date(a.createdAt));
+  const items=filteredItems(),pages=Math.max(1,Math.ceil(items.length/PAGE_SIZE));
+  currentPage=Math.min(currentPage,pages);
+  const visible=items.slice((currentPage-1)*PAGE_SIZE,currentPage*PAGE_SIZE);
   list.innerHTML="";
   empty.style.display=items.length?"none":"block";
-  items.forEach(v=>{
-    const row=document.createElement("article");row.className="content-row";
+  visible.forEach(v=>{
+    const row=document.createElement("article");row.className="content-row"+(selectedIds.has(String(v.id))?" selected":"");
+    const check=document.createElement("input");check.type="checkbox";check.className="row-select";check.checked=selectedIds.has(String(v.id));check.setAttribute("aria-label","Select video");
+    check.onchange=()=>{check.checked?selectedIds.add(String(v.id)):selectedIds.delete(String(v.id));row.classList.toggle("selected",check.checked);updateBulkControls()};
     const thumb=document.createElement("video");thumb.className="thumb";thumb.muted=true;thumb.preload="metadata";thumb.playsInline=true;
-    if(v.videoUrl)thumb.src=v.videoUrl; else if(v.video)thumb.src=URL.createObjectURL(v.video);
+    if(v.videoUrl)thumb.src=v.videoUrl;else if(v.video)thumb.src=URL.createObjectURL(v.video);
     const info=document.createElement("div");info.className="content-info";
     const h=document.createElement("h3");h.textContent=v.caption||"Untitled Beyond video";
-    const badge=document.createElement("span");badge.className="status "+(v.status==="draft"?"draft":"published");badge.textContent=v.status;
-    h.appendChild(badge);
+    const badge=document.createElement("span");badge.className="status "+(v.status==="draft"?"draft":"published");badge.textContent=v.status;h.appendChild(badge);
     const p=document.createElement("p");p.textContent=v.hashtags||"No hashtags";
     const meta=document.createElement("div");meta.className="meta";meta.textContent="👁 "+v.views+"   ❤️ "+v.likeCount+"   💬 "+v.commentCount+"   • "+new Date(v.createdAt).toLocaleDateString();
     info.append(h,p,meta);
-    const actions=document.createElement("div");actions.className="actions";
-    actions.innerHTML='<button>Edit</button><button></button><button class="delete">Delete</button>';
+    const actions=document.createElement("div");actions.className="actions";actions.innerHTML='<button>Edit</button><button></button><button class="delete">Delete</button>';
     actions.children[1].textContent=v.status==="draft"?"Publish":"Hide";
-    actions.children[0].onclick=()=>openEditor(v.id);
-    actions.children[1].onclick=()=>toggleStatus(v.id);
-    actions.children[2].onclick=()=>deleteVideo(v.id);
-    row.append(thumb,info,actions);list.append(row);
+    actions.children[0].onclick=()=>openEditor(v.id);actions.children[1].onclick=()=>toggleStatus(v.id);actions.children[2].onclick=()=>deleteVideo(v.id);
+    row.append(check,thumb,info,actions);list.append(row);
   });
+  document.getElementById("pageInfo").textContent="Page "+currentPage+" of "+pages+" · "+items.length+" videos";
+  document.getElementById("prevPage").disabled=currentPage<=1;
+  document.getElementById("nextPage").disabled=currentPage>=pages;
+  const pageIds=visible.map(v=>String(v.id));
+  document.getElementById("selectAll").checked=pageIds.length>0&&pageIds.every(id=>selectedIds.has(id));
+  updateBulkControls();
 }
-
-function openEditor(id){
-  const v=contentItems.find(x=>x.id===id);if(!v)return;
-  currentEditId=id;
-  document.getElementById("editCaption").value=v.caption||"";
-  document.getElementById("editHashtags").value=v.hashtags||"";
-  document.getElementById("editModal").classList.add("show");
+function updateBulkControls(){
+  const count=selectedIds.size;
+  document.getElementById("selectedCount").textContent=count+" selected";
+  ["bulkPublish","bulkDraft","bulkDelete"].forEach(id=>document.getElementById(id).disabled=count===0);
 }
-function closeEditor(){document.getElementById("editModal").classList.remove("show");currentEditId=null}
-
-async function saveEditor(){
-  const v=contentItems.find(x=>x.id===currentEditId);if(!v)return;
-  const caption=document.getElementById("editCaption").value.trim(),hashtags=document.getElementById("editHashtags").value.trim();
+function togglePageSelection(){
+  const visible=filteredItems().slice((currentPage-1)*PAGE_SIZE,currentPage*PAGE_SIZE);
+  if(document.getElementById("selectAll").checked)visible.forEach(v=>selectedIds.add(String(v.id)));
+  else visible.forEach(v=>selectedIds.delete(String(v.id)));
+  render();
+}
+async function bulkSetStatus(status){
+  const ids=[...selectedIds];if(!ids.length)return;
   try{
     if(usingSupabase){
-      const db=getSupabase();const {error}=await db.from("videos").update({caption,hashtags}).eq("id",v.id);
+      const db=getSupabase();const {error}=await db.from("videos").update({status}).in("id",ids);
       if(error)throw error;
     }else{
-      const db=await openDB();v.caption=caption;v.hashtags=hashtags;
-      await new Promise((resolve,reject)=>{const tx=db.transaction("videos","readwrite");tx.objectStore("videos").put(v);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});
+      const db=await openDB();
+      await Promise.all(ids.map(id=>{const v=contentItems.find(x=>String(x.id)===id);if(!v)return Promise.resolve();v.status=status;return new Promise((resolve,reject)=>{const tx=db.transaction("videos","readwrite");tx.objectStore("videos").put(v);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)})}));
     }
-    closeEditor();loadContent();
-  }catch(e){alert("Could not save changes: "+e.message)}
+    selectedIds.clear();await loadContent();
+  }catch(e){alert("Bulk update failed: "+e.message)}
 }
-
-async function toggleStatus(id){
-  const v=contentItems.find(x=>x.id===id);if(!v)return;
-  const next=v.status==="published"?"draft":"published";
-  try{
-    if(usingSupabase){
-      const db=getSupabase();const {error}=await db.from("videos").update({status:next}).eq("id",id);if(error)throw error;
-    }else{
-      const db=await openDB();v.status=next;
-      await new Promise((resolve,reject)=>{const tx=db.transaction("videos","readwrite");tx.objectStore("videos").put(v);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});
-    }
-    loadContent();
-  }catch(e){alert("Could not change video status: "+e.message)}
-}
-
-async function deleteVideo(id){
-  if(!confirm("Delete this Beyond video? This cannot be undone."))return;
+async function bulkDelete(){
+  const ids=[...selectedIds];if(!ids.length)return;
+  if(!confirm("Delete "+ids.length+" selected video(s)? This cannot be undone."))return;
   try{
     if(usingSupabase){
       const db=getSupabase();
-      const v=contentItems.find(x=>x.id===id);
-      const {error}=await db.from("videos").delete().eq("id",id);if(error)throw error;
-      if(v?.videoUrl){
-        const marker="/storage/v1/object/public/videos/";
-        const i=v.videoUrl.indexOf(marker);
-        if(i>=0){const path=decodeURIComponent(v.videoUrl.slice(i+marker.length));await db.storage.from("videos").remove([path]);}
-      }
+      const targets=contentItems.filter(v=>ids.includes(String(v.id)));
+      const {error}=await db.from("videos").delete().in("id",ids);if(error)throw error;
+      for(const v of targets){if(v.videoUrl){const marker="/storage/v1/object/public/videos/",i=v.videoUrl.indexOf(marker);if(i>=0){const path=decodeURIComponent(v.videoUrl.slice(i+marker.length));await db.storage.from("videos").remove([path])}}}
     }else{
-      const db=await openDB();await new Promise((resolve,reject)=>{const tx=db.transaction("videos","readwrite");tx.objectStore("videos").delete(id);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});
+      const db=await openDB();
+      await Promise.all(ids.map(id=>new Promise((resolve,reject)=>{const tx=db.transaction("videos","readwrite");tx.objectStore("videos").delete(Number(id));tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)})));
     }
-    loadContent();
-  }catch(e){alert("Could not delete video: "+e.message)}
+    selectedIds.clear();await loadContent();
+  }catch(e){alert("Bulk delete failed: "+e.message)}
 }
+function setupRealtime(db,userId){
+  if(realtimeChannel)return;
+  realtimeChannel=db.channel("beyond-content-manager-"+userId)
+    .on("postgres_changes",{event:"*",schema:"public",table:"videos",filter:"user_id=eq."+userId},()=>loadContent())
+    .on("postgres_changes",{event:"*",schema:"public",table:"likes"},()=>loadContent())
+    .on("postgres_changes",{event:"*",schema:"public",table:"comments"},()=>loadContent())
+    .subscribe();
+}}
