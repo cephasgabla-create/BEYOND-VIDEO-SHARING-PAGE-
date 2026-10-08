@@ -80,7 +80,7 @@ function updateFollowerRecord(username,currentUser,following){
   saveFollowersMap(map);
   return followers.length;
 }
-function toggleFollow(username,button){
+async function toggleFollow(username,button){
   const currentUser=localStorage.getItem("beyondUsername");
   if(!currentUser){
     alert("Please log in before following creators.");
@@ -91,31 +91,78 @@ function toggleFollow(username,button){
     alert("You cannot follow yourself.");
     return;
   }
-  let following=getFollowing();
-  const index=following.indexOf(username);
-  const nowFollowing=index===-1;
-  if(nowFollowing) following.push(username);
-  else following.splice(index,1);
-  saveFollowing(following);
-  updateFollowerRecord(username,currentUser,nowFollowing);
-  updateFollowButton(username,button);
-  document.querySelectorAll(".video-card").forEach(card=>{
-    if(card.dataset.creator===username){
-      card.querySelectorAll(".follow-button").forEach(b=>updateFollowButton(username,b));
+
+  const previousFollowing=getFollowing().includes(username);
+  const nowFollowing=!previousFollowing;
+
+  if(button){
+    button.disabled=true;
+    button.dataset.followingBusy="true";
+  }
+
+  try{
+    let supabaseUpdated=false;
+
+    if(typeof initBeyondDatabase==="function" &&
+       typeof getCurrentBeyondUser==="function" &&
+       typeof getBeyondProfileByUsername==="function" &&
+       typeof getBeyondFollowState==="function" &&
+       typeof setBeyondFollow==="function"){
+      const db=initBeyondDatabase();
+      if(db){
+        const authUser=await getCurrentBeyondUser();
+        if(authUser){
+          const target=await getBeyondProfileByUsername(username);
+          if(target){
+            const currentState=await getBeyondFollowState(target.id);
+            if(currentState!==nowFollowing){
+              await setBeyondFollow(target.id,nowFollowing);
+            }
+            supabaseUpdated=true;
+          }
+        }
+      }
     }
-  });
-  if(nowFollowing){
-    openDatabase().then(db=>{
-      const tx=db.transaction("notifications","readwrite");
-      tx.objectStore("notifications").add({
-        username,
-        type:"follow",
-        actor:currentUser,
-        text:"@"+currentUser+" followed you",
-        createdAt:new Date().toISOString(),
-        read:false
-      });
+
+    // Keep the local state synchronized for offline/demo fallback and UI filtering.
+    let following=getFollowing();
+    if(nowFollowing && !following.includes(username)) following.push(username);
+    if(!nowFollowing) following=following.filter(name=>name!==username);
+    saveFollowing(following);
+
+    if(!supabaseUpdated){
+      updateFollowerRecord(username,currentUser,nowFollowing);
+    }
+
+    updateFollowButton(username,button);
+    document.querySelectorAll(".video-card").forEach(card=>{
+      if(card.dataset.creator===username){
+        card.querySelectorAll(".follow-button").forEach(b=>updateFollowButton(username,b));
+      }
     });
+
+    if(nowFollowing){
+      openDatabase().then(db=>{
+        const tx=db.transaction("notifications","readwrite");
+        tx.objectStore("notifications").add({
+          username,
+          type:"follow",
+          actor:currentUser,
+          text:"@"+currentUser+" followed you",
+          createdAt:new Date().toISOString(),
+          read:false
+        });
+      }).catch(()=>{});
+    }
+  }catch(error){
+    console.error("Beyond follow/unfollow failed:",error);
+    alert("Beyond could not update this follow right now. Please try again.");
+    updateFollowButton(username,button);
+  }finally{
+    if(button){
+      button.disabled=false;
+      delete button.dataset.followingBusy;
+    }
   }
 }
 function updateFollowButton(username,button){
