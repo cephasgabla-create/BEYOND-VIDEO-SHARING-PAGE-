@@ -246,3 +246,78 @@ async function markBeyondNotificationsRead(ids=[]){
   if(error) throw error;
   return true;
 }
+
+
+async function getBeyondConversations(){
+  const db=beyondDB||initBeyondDatabase();
+  const user=await getCurrentBeyondUser();
+  if(!db||!user) throw new Error("Please sign in first.");
+  const {data,error}=await db.from("messages")
+    .select("id,sender_id,receiver_id,content,created_at,read")
+    .or("sender_id.eq."+user.id+",receiver_id.eq."+user.id)
+    .order("created_at",{ascending:false})
+    .limit(500);
+  if(error) throw error;
+  const rows=data||[];
+  const ids=[...new Set(rows.map(m=>m.sender_id===user.id?m.receiver_id:m.sender_id))];
+  let profiles=[];
+  if(ids.length){
+    const result=await db.from("profiles").select("id,username,display_name,avatar_url").in("id",ids);
+    if(result.error) throw result.error;
+    profiles=result.data||[];
+  }
+  const map=new Map(profiles.map(p=>[p.id,p]));
+  const conversations=new Map();
+  for(const m of rows){
+    const other=m.sender_id===user.id?m.receiver_id:m.sender_id;
+    if(!conversations.has(other)){
+      conversations.set(other,{user_id:other,profile:map.get(other)||null,last_message:m,unread_count:0});
+    }
+    if(m.receiver_id===user.id&&!m.read) conversations.get(other).unread_count++;
+  }
+  return [...conversations.values()].sort((a,b)=>new Date(b.last_message.created_at)-new Date(a.last_message.created_at));
+}
+
+async function getBeyondConversation(otherUserId,limit=100){
+  const db=beyondDB||initBeyondDatabase();
+  const user=await getCurrentBeyondUser();
+  if(!db||!user) throw new Error("Please sign in first.");
+  if(!otherUserId) throw new Error("A conversation user is required.");
+  const safeLimit=Math.min(Math.max(Number(limit)||100,1),200);
+  const {data,error}=await db.from("messages")
+    .select("id,sender_id,receiver_id,content,created_at,read")
+    .or("and(sender_id.eq."+user.id+",receiver_id.eq."+otherUserId+"),and(sender_id.eq."+otherUserId+",receiver_id.eq."+user.id+")")
+    .order("created_at",{ascending:true})
+    .limit(safeLimit);
+  if(error) throw error;
+  return data||[];
+}
+
+async function getBeyondUnreadMessageCount(){
+  const db=beyondDB||initBeyondDatabase();
+  const user=await getCurrentBeyondUser();
+  if(!db||!user) return 0;
+  const {count,error}=await db.from("messages").select("id",{count:"exact",head:true}).eq("receiver_id",user.id).eq("read",false);
+  if(error) throw error;
+  return count||0;
+}
+
+async function markBeyondConversationRead(otherUserId){
+  const db=beyondDB||initBeyondDatabase();
+  const user=await getCurrentBeyondUser();
+  if(!db||user===null) throw new Error("Please sign in first.");
+  const {error}=await db.from("messages").update({read:true})
+    .eq("receiver_id",user.id).eq("sender_id",otherUserId).eq("read",false);
+  if(error) throw error;
+  return true;
+}
+
+function subscribeBeyondMessages(callback){
+  const db=beyondDB||initBeyondDatabase();
+  if(!db) throw new Error("Supabase is not configured.");
+  return db.channel("beyond-direct-messages")
+    .on("postgres_changes",{event:"INSERT",schema:"public",table:"messages"},payload=>{
+      const m=payload.new||{};
+      if(m.sender_id===window.__beyondCurrentUserId||m.receiver_id===window.__beyondCurrentUserId) callback(m);
+    }).subscribe();
+}
