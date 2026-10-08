@@ -58,3 +58,48 @@ async function endDatabaseLive(roomId){
   if(!db) return;
   return db.from("live_rooms").update({active:false,ended_at:new Date().toISOString()}).eq("id",roomId);
 }
+
+
+async function getBeyondFollowStatsByUserId(userId){
+  const db=beyondDB||initBeyondDatabase();
+  if(!db||!userId)return {following:0,followers:0};
+  const [followingResult,followersResult]=await Promise.all([
+    db.from("follows").select("following_id",{count:"exact",head:true}).eq("follower_id",userId),
+    db.from("follows").select("follower_id",{count:"exact",head:true}).eq("following_id",userId)
+  ]);
+  if(followingResult.error) throw followingResult.error;
+  if(followersResult.error) throw followersResult.error;
+  return {following:followingResult.count||0,followers:followersResult.count||0};
+}
+
+async function getBeyondProfileByUsername(username){
+  const db=beyondDB||initBeyondDatabase();
+  if(!db||!username)return null;
+  const {data,error}=await db.from("profiles").select("id,username,display_name,bio,avatar_url").eq("username",username).maybeSingle();
+  if(error) throw error;
+  return data;
+}
+
+async function getBeyondFollowState(targetUserId){
+  const db=beyondDB||initBeyondDatabase();
+  const user=await getCurrentBeyondUser();
+  if(!db||!user||!targetUserId||user.id===targetUserId)return false;
+  const {data,error}=await db.from("follows").select("follower_id").eq("follower_id",user.id).eq("following_id",targetUserId).maybeSingle();
+  if(error) throw error;
+  return !!data;
+}
+
+async function setBeyondFollow(targetUserId,shouldFollow){
+  const db=beyondDB||initBeyondDatabase();
+  const user=await getCurrentBeyondUser();
+  if(!db||!user) throw new Error("Supabase authentication is required for database follows.");
+  if(user.id===targetUserId) throw new Error("You cannot follow yourself.");
+  if(shouldFollow){
+    const {error}=await db.from("follows").upsert({follower_id:user.id,following_id:targetUserId},{onConflict:"follower_id,following_id"});
+    if(error) throw error;
+  }else{
+    const {error}=await db.from("follows").delete().eq("follower_id",user.id).eq("following_id",targetUserId);
+    if(error) throw error;
+  }
+  return getBeyondFollowStatsByUserId(targetUserId);
+}
