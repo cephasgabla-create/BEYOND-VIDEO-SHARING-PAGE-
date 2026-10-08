@@ -54,6 +54,7 @@ async function loadContent(){
         }));
         updateStats();
         render();
+        setupRealtime(db,user.id);
         return;
       }
     }
