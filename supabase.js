@@ -18,6 +18,7 @@ function initBeyondDatabase(){
     return null;
   }
   beyondDB = window.supabase.createClient(BEYOND_SUPABASE_URL, BEYOND_SUPABASE_ANON_KEY);
+  window.beyondDB = beyondDB;
   return beyondDB;
 }
 
