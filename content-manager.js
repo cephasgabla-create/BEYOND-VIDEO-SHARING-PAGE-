@@ -200,18 +200,32 @@ async function bulkDelete(){
   }catch(e){alert("Bulk delete failed: "+e.message)}
 }
 function setupRealtime(db,userId){
-  if(realtimeChannel)return;
-  realtimeChannel=db.channel("beyond-content-manager-"+userId)
+  if(!db||!userId)return;
+  if(realtimeChannel){
+    try{db.removeChannel(realtimeChannel)}catch(e){console.warn("Beyond realtime cleanup:",e)}
+    realtimeChannel=null;
+  }
+  const channel=db.channel("beyond-content-manager-"+userId)
     .on("postgres_changes",{event:"*",schema:"public",table:"videos",filter:"user_id=eq."+userId},()=>loadContent())
-.on("postgres_changes",{event:"*",schema:"public",table:"likes"},payload=>{
+    .on("postgres_changes",{event:"*",schema:"public",table:"likes"},payload=>{
       const id=payload.new?.video_id||payload.old?.video_id;
       if(!id||contentItems.some(v=>String(v.id)===String(id)))loadContent();
     })
     .on("postgres_changes",{event:"*",schema:"public",table:"comments"},payload=>{
       const id=payload.new?.video_id||payload.old?.video_id;
       if(!id||contentItems.some(v=>String(v.id)===String(id)))loadContent();
-    })
-    .subscribe();
+    });
+  channel.subscribe(status=>{
+    if(status==="SUBSCRIBED"){
+      realtimeChannel=channel;
+      return;
+    }
+    if(status==="CHANNEL_ERROR"||status==="TIMED_OUT"||status==="CLOSED"){
+      if(realtimeChannel===channel)realtimeChannel=null;
+      try{db.removeChannel(channel)}catch(e){console.warn("Beyond realtime channel cleanup:",e)}
+      if(document.visibilityState!=="hidden")setTimeout(()=>setupRealtime(db,userId),5000);
+    }
+  });
 }
 function extractStoragePath(videoUrl){
   if(!videoUrl)return null;
