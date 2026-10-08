@@ -85,10 +85,12 @@ $("messageForm").addEventListener("submit",async e=>{
   catch(err){setStatus(err.message)}
   finally{input.disabled=false;input.focus()}
 });
-$("refreshBtn").onclick=loadConversations;\n$("messageSearch")?.addEventListener("input",()=>renderMessageRows(currentRows));
+$("refreshBtn").onclick=loadConversations;
+$("messageSearch")?.addEventListener("input",()=>renderMessageRows(currentRows));
 $("profileBtn")?.addEventListener("click",async()=>{const p=await loadProfileForUser(currentOtherId);if(p?.username)location.href="profile.html?username="+encodeURIComponent(p.username)});
 $("deleteConversationBtn")?.addEventListener("click",async()=>{if(!currentOtherId||!confirm("Delete this conversation for you?"))return;try{await deleteBeyondConversationForMe(currentOtherId);await renderConversation();await loadConversations();setStatus("Conversation deleted for you.")}catch(e){setStatus(e.message)}});
-$("messageList")?.addEventListener("click",async e=>{const me=e.target.closest("[data-delete-me]"),all=e.target.closest("[data-delete-everyone]");try{if(me&&confirm("Delete this message for you?")){await deleteBeyondMessageForMe(Number(me.dataset.deleteMe));await renderConversation();await loadConversations()}else if(all&&confirm("Delete this message for everyone?")){await deleteBeyondMessageForEveryone(Number(all.dataset.deleteEveryone));await renderConversation();await loadConversations()}}catch(err){setStatus(err.message)}});\n$("clearSearch")?.addEventListener("click",()=>{if($("messageSearch"))$("messageSearch").value="";renderMessageRows(currentRows)});
+$("messageList")?.addEventListener("click",async e=>{const me=e.target.closest("[data-delete-me]"),all=e.target.closest("[data-delete-everyone]");try{if(me&&confirm("Delete this message for you?")){await deleteBeyondMessageForMe(Number(me.dataset.deleteMe));await renderConversation();await loadConversations()}else if(all&&confirm("Delete this message for everyone?")){await deleteBeyondMessageForEveryone(Number(all.dataset.deleteEveryone));await renderConversation();await loadConversations()}}catch(err){setStatus(err.message)}});
+$("clearSearch")?.addEventListener("click",()=>{if($("messageSearch"))$("messageSearch").value="";renderMessageRows(currentRows)});
 $("messageInput").addEventListener("input",()=>{
   sendTyping(true);
   clearTimeout(typingTimer);
