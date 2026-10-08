@@ -332,6 +332,10 @@ function subscribeBeyondMessages(userId,callback){
     .on("postgres_changes",{event:"INSERT",schema:"public",table:"messages"},payload=>{
       const m=payload.new||{};
       if(m.sender_id===userId||m.receiver_id===userId) callback(m);
+    })
+    .on("postgres_changes",{event:"UPDATE",schema:"public",table:"messages"},payload=>{
+      const m=payload.new||{};
+      if(m.sender_id===userId||m.receiver_id===userId) callback(m);
     }).subscribe();
 }
 
