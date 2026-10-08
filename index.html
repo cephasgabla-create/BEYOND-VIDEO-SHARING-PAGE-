@@ -33,12 +33,12 @@
       <button onclick="showFollowing()">Following</button>
     </div>
     <div class="top-actions">
-      <button class="search-btn" onclick="openSearch()">🔍</button><button onclick="openMessages()" title="Messages">💬</button><button onclick="toggleTheme()" title="Theme">◐</button><button onclick="openMore()" title="More">☰</button>
+      <button class="search-btn" onclick="openSearch()">🔍</button><button class="notification-nav" onclick="location.href='notifications.html'" title="Notifications" aria-label="Notifications">🔔<span id="beyondNotificationBadge" class="notification-badge" hidden>0</span></button><button onclick="openMessages()" title="Messages">💬</button><button onclick="toggleTheme()" title="Theme">◐</button><button onclick="openMore()" title="More">☰</button>
       <button class="login-btn" onclick="openLogin()">Log in</button>
     </div>
   <!-- Beyond Messages navigation -->
 <a href="messages.html" class="messages-nav-link" aria-label="Messages">💬 Messages</a>
-<style>.messages-nav-link{display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:inherit;font-weight:600;margin:0 8px}.messages-nav-link:hover{text-decoration:underline}</style>
+<style>.messages-nav-link{display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:inherit;font-weight:600;margin:0 8px}.messages-nav-link:hover{text-decoration:underline}.notification-nav{position:relative}.notification-badge{position:absolute;top:-5px;right:-7px;min-width:17px;height:17px;padding:0 4px;border-radius:999px;background:#ff2d55;color:#fff;font:700 10px/17px Arial,sans-serif;text-align:center;border:2px solid #fff}</style>
 </header>
 
   <section class="stories"><div class="story-add" onclick="openUpload()">＋<span>Your Story</span></div><div class="story">🔥<span>Trending</span></div><div class="story">🎵<span>Music</span></div><div class="story">⚽<span>Sports</span></div><div class="story">🎮<span>Gaming</span></div></section><section class="post-composer"><div class="composer-avatar" id="composerAvatar">B</div><input id="postText" maxlength="280" placeholder="What is happening on Beyond?"><button onclick="createSocialPost()">Post</button></section><main id="feed">
@@ -112,7 +112,7 @@
 
   <div id="moreOverlay" class="more-overlay" onclick="closeMore()"></div><aside id="morePanel" class="more-panel"><div class="more-head"><h2>Beyond Hub</h2><button onclick="closeMore()">✕</button></div><button onclick="openSearch()">🔎 Discover creators</button><button onclick="showSaved()">🔖 Saved posts</button><button onclick="showHistory()">🕘 Watch history</button><button onclick="toggleTheme();closeMore()">◐ Switch theme</button><button onclick="openSettings()">⚙️ Settings</button><div class="hub-stats"><strong>Beyond</strong><span>Connect • Create • Discover</span></div></aside>
 
-  <script src="script.js"></script>
+  <script src="script.js"></script><script>initBeyondNotificationBadge();</script>
 <div id="messagesOverlay" class="messages-overlay" onclick="closeMessages()"></div>
 <section id="messagesPanel" class="messages-panel">
   <div class="messages-head"><div><span class="eyebrow">BEYOND CHAT</span><h2>Messages</h2></div><button onclick="closeMessages()">✕</button></div>
