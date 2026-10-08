@@ -37,19 +37,28 @@ async function loadContent(){
       const {data:{user}}=await db.auth.getUser();
       if(user){
         usingSupabase=true;
-        const [{data:videos,error:vError},{data:likes,error:lError},{data:comments,error:cError}]=await Promise.all([
-          db.from("videos").select("*").eq("user_id",user.id).order("created_at",{ascending:false}),
-          db.from("likes").select("video_id"),
-          db.from("comments").select("video_id")
-        ]);
+        const {data:videos,error:vError}=await db.from("videos").select("*").eq("user_id",user.id).order("created_at",{ascending:false});
         if(vError) throw vError;
+        const ids=(videos||[]).map(v=>v.id);
+        let likes=[],comments=[];
+        if(ids.length){
+          const [lr,cr]=await Promise.all([
+            db.from("likes").select("video_id").in("video_id",ids),
+            db.from("comments").select("video_id").in("video_id",ids)
+          ]);
+          if(lr.error)throw lr.error;
+          if(cr.error)throw cr.error;
+          likes=lr.data||[];
+          comments=cr.data||[];
+        }
         const likeMap={},commentMap={};
-        (likes||[]).forEach(x=>likeMap[x.video_id]=(likeMap[x.video_id]||0)+1);
-        (comments||[]).forEach(x=>commentMap[x.video_id]=(commentMap[x.video_id]||0)+1);
+        likes.forEach(x=>likeMap[x.video_id]=(likeMap[x.video_id]||0)+1);
+        comments.forEach(x=>commentMap[x.video_id]=(commentMap[x.video_id]||0)+1);
         contentItems=(videos||[]).map(v=>({
           id:v.id,caption:v.caption||"",hashtags:v.hashtags||"",status:v.status||"published",
-          views:Number(v.views_count||0),likeCount:likeMap[v.id]||Number(v.likes_count||0),
-          commentCount:commentMap[v.id]||Number(v.comments_count||0),createdAt:v.created_at,videoUrl:v.video_url,visibility:v.visibility||"public",commentsEnabled:v.comments_enabled!==false
+          views:Number(v.views_count||0),likeCount:likeMap[v.id]??Number(v.likes_count||0),
+          commentCount:commentMap[v.id]??0,createdAt:v.created_at,videoUrl:v.video_url,
+          visibility:v.visibility||"public",commentsEnabled:v.comments_enabled!==false
         }));
         updateStats();
         render();
@@ -194,8 +203,14 @@ function setupRealtime(db,userId){
   if(realtimeChannel)return;
   realtimeChannel=db.channel("beyond-content-manager-"+userId)
     .on("postgres_changes",{event:"*",schema:"public",table:"videos",filter:"user_id=eq."+userId},()=>loadContent())
-    .on("postgres_changes",{event:"*",schema:"public",table:"likes"},()=>loadContent())
-    .on("postgres_changes",{event:"*",schema:"public",table:"comments"},()=>loadContent())
+.on("postgres_changes",{event:"*",schema:"public",table:"likes"},payload=>{
+      const id=payload.new?.video_id||payload.old?.video_id;
+      if(!id||contentItems.some(v=>String(v.id)===String(id)))loadContent();
+    })
+    .on("postgres_changes",{event:"*",schema:"public",table:"comments"},payload=>{
+      const id=payload.new?.video_id||payload.old?.video_id;
+      if(!id||contentItems.some(v=>String(v.id)===String(id)))loadContent();
+    })
     .subscribe();
 }
 function extractStoragePath(videoUrl){
