@@ -7,12 +7,41 @@ function currentUser(){
   return localStorage.getItem("beyondUsername")||"BeyondCreator";
 }
 
-function loadProfile(){
+async function loadProfile(){
   const u=currentUser();
   usernameEl.textContent="@"+u;
   avatarEl.textContent=u.charAt(0).toUpperCase();
   bioEl.textContent=localStorage.getItem("beyondBio")||"Welcome to my Beyond profile 🚀";
-  loadFollowStats();
+
+  try{
+    if(typeof initBeyondDatabase==="function" && typeof getBeyondOwnProfile==="function"){
+      const db=initBeyondDatabase();
+      if(db){
+        const authUser=await getCurrentBeyondUser();
+        if(authUser){
+          const profile=await getBeyondOwnProfile();
+          if(profile){
+            const name=profile.username||profile.display_name||u;
+            usernameEl.textContent="@"+name;
+            avatarEl.textContent=(name.charAt(0)||"B").toUpperCase();
+            bioEl.textContent=profile.bio||"Welcome to my Beyond profile 🚀";
+            localStorage.setItem("beyondUsername",name);
+            localStorage.setItem("beyondBio",profile.bio||"");
+            if(profile.avatar_url){
+              avatarEl.textContent="";
+              avatarEl.style.backgroundImage="url('"+profile.avatar_url.replace(/'/g,"\\'")+"')";
+              avatarEl.style.backgroundSize="cover";
+              avatarEl.style.backgroundPosition="center";
+            }
+          }
+        }
+      }
+    }
+  }catch(error){
+    console.warn("Beyond Supabase profile unavailable:",error);
+  }
+
+  await loadFollowStats();
   loadLikeCount();
   loadNotifications();
   loadVideos();
@@ -124,16 +153,33 @@ function openDB(){
   });
 }
 
-function editProfile(){
+async function editProfile(){
   const old=localStorage.getItem("beyondBio")||"";
   const value=prompt("Enter your new bio:",old);
-  if(value!==null){
-    if(value.length>80){
-      alert("Your bio must be 80 characters or less.");
-      return;
+  if(value===null)return;
+  if(value.length>80){
+    alert("Your bio must be 80 characters or less.");
+    return;
+  }
+
+  localStorage.setItem("beyondBio",value);
+  bioEl.textContent=value;
+
+  try{
+    if(typeof updateBeyondOwnProfile==="function"){
+      const db=initBeyondDatabase();
+      const authUser=await getCurrentBeyondUser();
+      if(db&&authUser){
+        await updateBeyondOwnProfile({
+          username:currentUser(),
+          display_name:currentUser(),
+          bio:value
+        });
+      }
     }
-    localStorage.setItem("beyondBio",value);
-    bioEl.textContent=value;
+  }catch(error){
+    console.warn("Beyond profile save warning:",error);
+    alert("Your bio was saved locally, but Supabase could not save it.");
   }
 }
 
