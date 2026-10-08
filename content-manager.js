@@ -3,6 +3,10 @@ const selectedIds=new Set();
 let currentPage=1;
 const PAGE_SIZE=8;
 let realtimeChannel=null;
+let realtimeUserId=null;
+let realtimeDb=null;
+let realtimeReloadTimer=null;
+let contentLoadInProgress=false;
 const localObjectUrls=new Map();
 
 document.addEventListener("DOMContentLoaded",()=>{
@@ -31,6 +35,8 @@ function getSupabase(){
 }
 
 async function loadContent(){
+  if(contentLoadInProgress)return;
+  contentLoadInProgress=true;
   try{
     const db=getSupabase();
     if(db){
@@ -72,6 +78,8 @@ async function loadContent(){
     console.error("Supabase Content Manager:",e);
     usingSupabase=false;
     await loadLocalContent();
+  }finally{
+    contentLoadInProgress=false;
   }
 }
 
@@ -199,21 +207,31 @@ async function bulkDelete(){
     selectedIds.clear();await loadContent();
   }catch(e){alert("Bulk delete failed: "+e.message)}
 }
+function scheduleRealtimeReload(){
+  if(realtimeReloadTimer)return;
+  realtimeReloadTimer=setTimeout(()=>{
+    realtimeReloadTimer=null;
+    loadContent();
+  },350);
+}
 function setupRealtime(db,userId){
   if(!db||!userId)return;
+  if(realtimeChannel&&realtimeDb===db&&realtimeUserId===userId)return;
   if(realtimeChannel){
-    try{db.removeChannel(realtimeChannel)}catch(e){console.warn("Beyond realtime cleanup:",e)}
+    try{realtimeDb?.removeChannel(realtimeChannel)}catch(e){console.warn("Beyond realtime cleanup:",e)}
     realtimeChannel=null;
   }
+  realtimeDb=db;
+  realtimeUserId=userId;
   const channel=db.channel("beyond-content-manager-"+userId)
-    .on("postgres_changes",{event:"*",schema:"public",table:"videos",filter:"user_id=eq."+userId},()=>loadContent())
+    .on("postgres_changes",{event:"*",schema:"public",table:"videos",filter:"user_id=eq."+userId},scheduleRealtimeReload)
     .on("postgres_changes",{event:"*",schema:"public",table:"likes"},payload=>{
       const id=payload.new?.video_id||payload.old?.video_id;
-      if(!id||contentItems.some(v=>String(v.id)===String(id)))loadContent();
+      if(!id||contentItems.some(v=>String(v.id)===String(id)))scheduleRealtimeReload();
     })
     .on("postgres_changes",{event:"*",schema:"public",table:"comments"},payload=>{
       const id=payload.new?.video_id||payload.old?.video_id;
-      if(!id||contentItems.some(v=>String(v.id)===String(id)))loadContent();
+      if(!id||contentItems.some(v=>String(v.id)===String(id)))scheduleRealtimeReload();
     });
   channel.subscribe(status=>{
     if(status==="SUBSCRIBED"){
@@ -334,3 +352,8 @@ function closePreview(){
   const m=document.getElementById("previewModal"),x=document.getElementById("previewVideo");
   m.classList.remove("show");x.pause();x.removeAttribute("src");x.load();
 }
+window.addEventListener("beforeunload",()=>{
+  if(realtimeReloadTimer)clearTimeout(realtimeReloadTimer);
+  if(realtimeChannel&&realtimeDb){try{realtimeDb.removeChannel(realtimeChannel)}catch(e){}}
+  localObjectUrls.forEach(url=>URL.revokeObjectURL(url));
+});
