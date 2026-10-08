@@ -46,9 +46,10 @@ async function loadForYouFeed(){
   }
   try{
     let rows=null;
+    const blocked=await getBeyondBlockedUserIds();
     const rpc=await db.rpc("get_beyond_for_you_feed",{p_limit:50});
-    if(!rpc.error)rows=(rpc.data||[]).map(normalizeRecommendedVideo);
-    else rows=await buildClientForYouFeed(db,50);
+    if(!rpc.error)rows=(rpc.data||[]).filter(x=>!blocked.has(x.user_id)).map(normalizeRecommendedVideo);
+    else rows=(await buildClientForYouFeed(db,50)).filter(x=>!blocked.has(x.user_id));
 
     staticCards.forEach(card=>card.remove());
     feed.querySelectorAll(".feed-empty").forEach(x=>x.remove());
