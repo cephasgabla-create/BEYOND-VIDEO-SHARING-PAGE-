@@ -245,7 +245,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $$$
 begin
   if tg_op = 'INSERT' then
     update public.videos
@@ -274,7 +274,7 @@ returns bigint
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $$$
 declare
   new_count bigint;
 begin
@@ -362,7 +362,7 @@ returns bigint
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $$$
 declare new_count bigint;
 begin
   if delta not in (-1, 1) then
@@ -428,7 +428,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $$$
 begin
   insert into public.profiles (id, username, display_name)
   values (
@@ -486,7 +486,7 @@ returns table (
 language sql
 security definer
 set search_path = public
-as $$
+as $$$
 with current_user_id as (
   select auth.uid() as id
 ),
@@ -585,7 +585,7 @@ returns jsonb
 language sql
 security definer
 set search_path = public
-as $$
+as $$$
 with published as (
   select v.id, v.user_id, v.video_url, v.caption, v.hashtags,
          coalesce(v.views_count,0)::numeric as views_count,
@@ -728,7 +728,7 @@ returns bigint
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $$$
 declare new_count bigint;
 declare viewer uuid;
 begin
@@ -780,7 +780,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $$$
 begin
   if tg_op = 'INSERT' then
     insert into public.follower_events(creator_id, follower_id, event_type)
@@ -851,7 +851,7 @@ returns void
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $$$
 begin
   if target_user is null or actor is null or target_user = actor then
     return;
@@ -875,7 +875,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $$$
 declare owner_id uuid;
 begin
   select user_id into owner_id from public.videos where id = new.video_id;
@@ -896,7 +896,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $$$
 declare owner_id uuid;
 begin
   select user_id into owner_id from public.videos where id = new.video_id;
@@ -917,7 +917,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $$$
 begin
   perform public.create_beyond_notification(
     new.following_id, new.follower_id, 'follow', null, null, 'You have a new follower.'
@@ -936,7 +936,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $$$
 declare target_video bigint;
 begin
   target_video := case when tg_op = 'DELETE' then old.video_id else new.video_id end;
@@ -968,7 +968,7 @@ returns bigint
 language sql
 security definer
 set search_path = public
-as $$
+as $$$
   select count(*)::bigint
   from public.notifications
   where user_id = auth.uid() and read = false;
@@ -999,7 +999,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $$$
 begin
   perform public.create_beyond_notification(
     new.receiver_id,
@@ -1037,7 +1037,7 @@ returns bigint
 language sql
 security definer
 set search_path = public
-as $$
+as $$$
   select count(*)::bigint
   from public.messages
   where receiver_id = auth.uid()
@@ -1057,7 +1057,7 @@ returns public.profiles
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare
   p public.profiles;
   desired_username text;
@@ -1105,7 +1105,7 @@ returns boolean
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare changed boolean;
 begin
   update public.messages
@@ -1116,14 +1116,14 @@ begin
   changed := found;
   return changed;
 end;
-$;
+$$;
 
 create or replace function public.mark_beyond_conversation_read(other_user_id uuid)
 returns bigint
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare changed_count bigint;
 begin
   update public.messages
@@ -1134,7 +1134,7 @@ begin
   get diagnostics changed_count = row_count;
   return changed_count;
 end;
-$;
+$$;
 
 revoke all on function public.mark_beyond_message_read(bigint) from public;
 revoke all on function public.mark_beyond_conversation_read(uuid) from public;
@@ -1189,7 +1189,7 @@ exception when duplicate_object then null; end $;
 
   return p;
 end;
-$;
+$$;
 
 revoke all on function public.ensure_beyond_profile() from public;
 grant execute on function public.ensure_beyond_profile() to authenticated;
@@ -1221,7 +1221,7 @@ returns boolean
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare changed boolean;
 begin
   update public.messages
@@ -1232,14 +1232,14 @@ begin
   changed := found;
   return changed;
 end;
-$;
+$$;
 
 create or replace function public.mark_beyond_conversation_read(other_user_id uuid)
 returns bigint
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare changed_count bigint;
 begin
   update public.messages
@@ -1250,7 +1250,7 @@ begin
   get diagnostics changed_count = row_count;
   return changed_count;
 end;
-$;
+$$;
 
 revoke all on function public.mark_beyond_message_read(bigint) from public;
 revoke all on function public.mark_beyond_conversation_read(uuid) from public;
@@ -1268,9 +1268,9 @@ exception when duplicate_object then null; end $;
 -- Beyond Messages deletion controls
 alter table public.messages add column if not exists deleted_for_sender boolean not null default false;
 alter table public.messages add column if not exists deleted_for_receiver boolean not null default false;
-create or replace function public.delete_beyond_message_for_me(message_id bigint) returns boolean language plpgsql security definer set search_path=public as $$ begin update public.messages set deleted_for_sender=true where id=delete_beyond_message_for_me.message_id and sender_id=auth.uid() and deleted_for_sender=false; if found then return true; end if; update public.messages set deleted_for_receiver=true where id=delete_beyond_message_for_me.message_id and receiver_id=auth.uid() and deleted_for_receiver=false; return found; end; $$;
-create or replace function public.delete_beyond_message_for_everyone(message_id bigint) returns boolean language plpgsql security definer set search_path=public as $$ begin update public.messages set deleted_for_sender=true,deleted_for_receiver=true where id=delete_beyond_message_for_everyone.message_id and sender_id=auth.uid() and deleted_for_sender=false; return found; end; $$;
-create or replace function public.delete_beyond_conversation_for_me(other_user_id uuid) returns bigint language plpgsql security definer set search_path=public as $$ declare changed_count bigint:=0; begin update public.messages set deleted_for_sender=true where sender_id=auth.uid() and receiver_id=delete_beyond_conversation_for_me.other_user_id and deleted_for_sender=false; changed_count:=changed_count+row_count; update public.messages set deleted_for_receiver=true where receiver_id=auth.uid() and sender_id=delete_beyond_conversation_for_me.other_user_id and deleted_for_receiver=false; changed_count:=changed_count+row_count; return changed_count; end; $$;
+create or replace function public.delete_beyond_message_for_me(message_id bigint) returns boolean language plpgsql security definer set search_path=public as $$$ begin update public.messages set deleted_for_sender=true where id=delete_beyond_message_for_me.message_id and sender_id=auth.uid() and deleted_for_sender=false; if found then return true; end if; update public.messages set deleted_for_receiver=true where id=delete_beyond_message_for_me.message_id and receiver_id=auth.uid() and deleted_for_receiver=false; return found; end; $$;
+create or replace function public.delete_beyond_message_for_everyone(message_id bigint) returns boolean language plpgsql security definer set search_path=public as $$$ begin update public.messages set deleted_for_sender=true,deleted_for_receiver=true where id=delete_beyond_message_for_everyone.message_id and sender_id=auth.uid() and deleted_for_sender=false; return found; end; $$;
+create or replace function public.delete_beyond_conversation_for_me(other_user_id uuid) returns bigint language plpgsql security definer set search_path=public as $$$ declare changed_count bigint:=0; begin update public.messages set deleted_for_sender=true where sender_id=auth.uid() and receiver_id=delete_beyond_conversation_for_me.other_user_id and deleted_for_sender=false; changed_count:=changed_count+row_count; update public.messages set deleted_for_receiver=true where receiver_id=auth.uid() and sender_id=delete_beyond_conversation_for_me.other_user_id and deleted_for_receiver=false; changed_count:=changed_count+row_count; return changed_count; end; $$;
 revoke all on function public.delete_beyond_message_for_me(bigint) from public;
 revoke all on function public.delete_beyond_message_for_everyone(bigint) from public;
 revoke all on function public.delete_beyond_conversation_for_me(uuid) from public;
@@ -1288,7 +1288,7 @@ alter table public.profiles add column if not exists personalized_recommendation
 alter table public.profiles add column if not exists personalized_notifications boolean not null default true;
 
 create or replace function public.get_beyond_privacy_settings()
-returns jsonb language sql security definer set search_path=public as $$
+returns jsonb language sql security definer set search_path=public as $$$
   select jsonb_build_object(
     'privateAccount', coalesce(private_account,false),
     'activityStatus', coalesce(activity_status,true),
@@ -1306,7 +1306,7 @@ create or replace function public.update_beyond_privacy_settings(
   p_tag_review boolean,
   p_recommendations boolean,
   p_personalized_notifications boolean
-) returns jsonb language plpgsql security definer set search_path=public as $$
+) returns jsonb language plpgsql security definer set search_path=public as $$$
 declare result jsonb;
 begin
   if auth.uid() is null then raise exception 'Authentication required'; end if;
@@ -1346,17 +1346,17 @@ create policy "users remove their blocks" on public.blocked_users for delete to 
 create index if not exists blocked_users_blocked_idx on public.blocked_users(blocked_id);
 create or replace function public.get_beyond_blocked_users()
 returns table(blocked_id uuid, username text, display_name text, avatar_url text, blocked_at timestamptz)
-language sql security definer set search_path=public as $$
+language sql security definer set search_path=public as $$$
  select b.blocked_id,p.username,p.display_name,p.avatar_url,b.created_at
  from public.blocked_users b left join public.profiles p on p.id=b.blocked_id
  where b.blocker_id=auth.uid() order by b.created_at desc;
 $$;
 create or replace function public.is_beyond_blocked(target_user_id uuid)
-returns boolean language sql security definer set search_path=public as $$
+returns boolean language sql security definer set search_path=public as $$$
  select exists(select 1 from public.blocked_users where (blocker_id=auth.uid() and blocked_id=target_user_id) or (blocker_id=target_user_id and blocked_id=auth.uid()));
 $$;
 create or replace function public.set_beyond_block_user(target_user_id uuid, should_block boolean)
-returns boolean language plpgsql security definer set search_path=public as $$
+returns boolean language plpgsql security definer set search_path=public as $$$
 begin
  if auth.uid() is null then raise exception 'Authentication required'; end if;
  if target_user_id is null or target_user_id=auth.uid() then raise exception 'Invalid user'; end if;
@@ -1380,7 +1380,7 @@ grant execute on function public.set_beyond_block_user(uuid,boolean) to authenti
 
 -- Enforce blocked-user safety across interactions and reads.
 create or replace function public.beyond_blocked_interaction_guard()
-returns trigger language plpgsql security definer set search_path=public as $$
+returns trigger language plpgsql security definer set search_path=public as $$$
 declare target uuid;
 begin
  if tg_table_name='messages' then
