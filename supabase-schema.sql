@@ -312,3 +312,8 @@ alter table public.dashboard_customizations enable row level security;
 create policy "dashboard_customizations_owner_select" on public.dashboard_customizations for select to authenticated using (user_id = auth.uid());
 create policy "dashboard_customizations_owner_insert" on public.dashboard_customizations for insert to authenticated with check (user_id = auth.uid());
 create policy "dashboard_customizations_owner_update" on public.dashboard_customizations for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- Creator moderation: allow video owners to hide comments on their own videos.
+alter table public.comments add column if not exists hidden_by_creator boolean not null default false;
+create policy "video owners can hide comments" on public.comments for update to authenticated using (exists (select 1 from public.videos v where v.id = comments.video_id and v.user_id = auth.uid())) with check (exists (select 1 from public.videos v where v.id = comments.video_id and v.user_id = auth.uid()));
+create policy "video owners can delete comments" on public.comments for delete to authenticated using (exists (select 1 from public.videos v where v.id = comments.video_id and v.user_id = auth.uid()) or user_id = auth.uid());
