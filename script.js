@@ -32,6 +32,17 @@ function normalizeRecommendedVideo(row){
   };
 }
 
+function cleanupBeyondRemoteVideoCards(){
+ const db=window.beyondDB||initBeyondDatabase();
+ document.querySelectorAll("#feed .video-card").forEach(card=>{
+   const channel=card._beyondRealtimeChannel;
+   if(channel&&db){
+     try{db.removeChannel(channel)}catch(error){console.warn("Beyond realtime cleanup failed:",error)}
+   }
+   card.remove();
+ });
+}
+
 async function loadForYouFeed(){
   const feed=document.getElementById("feed");
   if(!feed)return;
@@ -51,6 +62,7 @@ async function loadForYouFeed(){
     if(!rpc.error)rows=(rpc.data||[]).filter(x=>!blocked.has(x.user_id)).map(normalizeRecommendedVideo);
     else rows=(await buildClientForYouFeed(db,50)).filter(x=>!blocked.has(x.user_id));
 
+    cleanupBeyondRemoteVideoCards();
     staticCards.forEach(card=>card.remove());
     feed.querySelectorAll(".feed-empty").forEach(x=>x.remove());
     (rows||[]).forEach(video=>createRemoteVideoCard(video));
@@ -356,7 +368,8 @@ async function showFollowing(){
  const {data:follows,error:followError}=await db.from("follows").select("following_id").eq("follower_id",user.id);
  if(followError){alert("Could not load your Following feed.");return}
  const ids=(follows||[]).map(x=>x.following_id);
- document.querySelectorAll(".video-card").forEach(card=>card.remove());
+ cleanupBeyondRemoteVideoCards();
+ feed.querySelectorAll(".feed-empty").forEach(x=>x.remove());
  if(!ids.length){
    const feed=document.getElementById("feed");if(feed){const empty=document.createElement("div");empty.className="feed-empty";empty.textContent="You are not following anyone yet. Follow a creator to build your Following feed.";feed.appendChild(empty)}
    return;
