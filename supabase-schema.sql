@@ -973,3 +973,10 @@ do $$ begin
     on public.notifications for delete to authenticated
     using (user_id = auth.uid());
 exception when duplicate_object then null; end $$;
+
+
+-- Lock down notification creation to trusted database triggers only.
+-- The notification creator is security-definer and is invoked by database triggers.
+-- Clients should not be able to manufacture arbitrary notifications.
+revoke execute on function public.create_beyond_notification(uuid, uuid, text, bigint, bigint, text) from public;
+revoke execute on function public.create_beyond_notification(uuid, uuid, text, bigint, bigint, text) from authenticated;
