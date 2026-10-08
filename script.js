@@ -194,10 +194,11 @@ function chatKey(name){return "beyondChat_"+name}
 function loadChatMessages(name){const box=document.getElementById("chatMessages");const msgs=JSON.parse(localStorage.getItem(chatKey(name))||"[]");box.innerHTML='<div class="chat-bubble received">Welcome to Beyond! 👋</div>';msgs.forEach(m=>{const d=document.createElement("div");d.className="chat-bubble "+(m.user===localStorage.getItem("beyondUsername")?"sent":"received");d.textContent=m.text;box.appendChild(d)});box.scrollTop=box.scrollHeight}
 function sendMessage(){const input=document.getElementById("chatInput"),text=input.value.trim(),name=document.getElementById("chatName").textContent.replace("@","");if(!text)return;if(!localStorage.getItem("beyondUsername")){location.href="login.html";return}let msgs=JSON.parse(localStorage.getItem(chatKey(name))||"[]");msgs.push({user:localStorage.getItem("beyondUsername"),text,createdAt:new Date().toISOString()});localStorage.setItem(chatKey(name),JSON.stringify(msgs));input.value="";loadChatMessages(name)}
 
-function openLive(){const p=document.getElementById("livePanel");if(!p)return;p.classList.add("open");document.getElementById("liveOverlay").style.display="block";startLiveSimulation()}
-function closeLive(){document.getElementById("livePanel")?.classList.remove("open");const o=document.getElementById("liveOverlay");if(o)o.style.display="none"}
-let liveTimer;
-function startLiveSimulation(){clearInterval(liveTimer);liveTimer=setInterval(()=>{const el=document.getElementById("liveViewers");if(el)el.textContent=Math.max(1,parseInt(el.textContent||128)+Math.floor(Math.random()*7)-3)},2500)}
+function openLive(){const p=document.getElementById("livePanel");if(!p)return;p.classList.add("open");const o=document.getElementById("liveOverlay");if(o)o.style.display="block";startLiveSimulation()}
+function closeLive(){document.getElementById("livePanel")?.classList.remove("open");const o=document.getElementById("liveOverlay");if(o)o.style.display="none";stopLiveSimulation()}
+let liveTimer=null;
+function startLiveSimulation(){stopLiveSimulation();liveTimer=setInterval(()=>{const el=document.getElementById("liveViewers");if(el){const current=parseInt(el.textContent,10)||128;el.textContent=Math.max(1,current+Math.floor(Math.random()*7)-3)}},2500)}
+function stopLiveSimulation(){if(liveTimer!==null){clearInterval(liveTimer);liveTimer=null}}
 function sendReaction(emoji){const f=document.createElement("span");f.className="reaction-floater";f.textContent=emoji;document.getElementById("reactionFloaters").appendChild(f);setTimeout(()=>f.remove(),1800)}
 function sendLiveMessage(){const input=document.getElementById("liveChatInput"),text=input.value.trim();if(!text)return;const user=localStorage.getItem("beyondUsername")||"Guest";const row=document.createElement("div");row.className="live-msg";row.innerHTML="<b>@"+user.replace(/[<>]/g,"")+"</b><span></span>";row.querySelector("span").textContent=text;document.getElementById("liveChat").appendChild(row);input.value="";const box=document.getElementById("liveChat");box.scrollTop=box.scrollHeight}
 function followLiveCreator(btn){btn.textContent=btn.textContent.includes("Follow")?"✓ Following":" + Follow"}
@@ -205,7 +206,7 @@ function toggleLiveMic(btn){btn.textContent=btn.textContent.includes("On")?"🔇
 function toggleLiveCamera(btn){btn.textContent=btn.textContent.includes("On")?"📵 Camera Off":"📹 Camera On"}
 function muteLiveChat(btn){btn.textContent=btn.textContent.includes("On")?"🚫 Chat Off":"💬 Chat On";document.getElementById("liveChatInput").disabled=btn.textContent.includes("Off")}
 function shareLive(){if(navigator.share)navigator.share({title:"Beyond Live",text:"Join my Beyond live room!"}).catch(()=>{});else alert("Live link copied!")}
-function endLive(){document.getElementById("liveStatus").textContent="Live ended by the creator.";clearInterval(liveTimer)}
+function endLive(){const status=document.getElementById("liveStatus");if(status)status.textContent="Live ended by the creator.";stopLiveSimulation();closeLive()}
 
 async function loadDatabaseFeed(){
  const db=window.beyondDB||initBeyondDatabase();
