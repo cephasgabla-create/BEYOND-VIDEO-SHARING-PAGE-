@@ -297,9 +297,9 @@ async function getBeyondUnreadMessageCount(){
   const db=beyondDB||initBeyondDatabase();
   const user=await getCurrentBeyondUser();
   if(!db||!user) return 0;
-  const {count,error}=await db.from("messages").select("id",{count:"exact",head:true}).eq("receiver_id",user.id).eq("read",false);
+  const {data,error}=await db.rpc("get_beyond_unread_message_count");
   if(error) throw error;
-  return count||0;
+  return Number(data||0);
 }
 
 async function markBeyondConversationRead(otherUserId){
