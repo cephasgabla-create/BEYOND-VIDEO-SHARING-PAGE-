@@ -346,3 +346,9 @@ exception when duplicate_object then null; end $$;
 do $$ begin
   alter publication supabase_realtime add table public.live_reactions;
 exception when duplicate_object then null; end $$;
+
+-- Realtime for follower activity used by Audience and Notifications.
+alter table public.follows replica identity full;
+do $$ begin
+  alter publication supabase_realtime add table public.follows;
+exception when duplicate_object then null; end $$;
