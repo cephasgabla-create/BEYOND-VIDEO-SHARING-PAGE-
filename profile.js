@@ -49,6 +49,24 @@ async function loadProfile(){
 }
 
 async function loadLikeCount(){
+  try{
+    if(typeof initBeyondDatabase==="function" && typeof getCurrentBeyondUser==="function"){
+      const db=initBeyondDatabase();
+      const authUser=db?await getCurrentBeyondUser():null;
+      if(db&&authUser){
+        const {data:videos,error:videoError}=await db.from("videos").select("id").eq("user_id",authUser.id);
+        if(!videoError){
+          const ids=(videos||[]).map(v=>v.id);
+          if(!ids.length){likesEl.textContent="0";return;}
+          const {count,error}=await db.from("likes").select("video_id",{count:"exact",head:true}).in("video_id",ids);
+          if(!error){likesEl.textContent=count||0;return;}
+        }
+      }
+    }
+  }catch(error){
+    console.warn("Beyond Supabase like count unavailable:",error);
+  }
+
   const db=await openDB();
   const videoReq=db.transaction("videos","readonly").objectStore("videos").getAll();
   videoReq.onsuccess=()=>{
@@ -101,41 +119,61 @@ async function loadFollowStats(){
 }
 
 async function loadVideos(){
+  try{
+    if(typeof initBeyondDatabase==="function" && typeof getCurrentBeyondUser==="function"){
+      const db=initBeyondDatabase();
+      const authUser=db?await getCurrentBeyondUser():null;
+      if(db&&authUser){
+        const {data:posts,error}=await db.from("videos").select("id,video_url,caption,created_at").eq("user_id",authUser.id).order("created_at",{ascending:false});
+        if(!error){
+          renderProfileVideos(posts||[]);
+          return;
+        }
+      }
+    }
+  }catch(error){
+    console.warn("Beyond Supabase profile videos unavailable:",error);
+  }
+
   const db=await openDB();
   const req=db.transaction("videos","readonly").objectStore("videos").getAll();
-
   req.onsuccess=()=>{
-    const posts=req.result.filter(p=>p.username===currentUser()).reverse();
-    const container=document.getElementById("profileVideos");
-    if(!container)return;
-    container.innerHTML="";
-
-    if(!posts.length){
-      const empty=document.createElement("p");
-      empty.id="noVideos";
-      empty.textContent="You haven't posted any videos yet.";
-      container.appendChild(empty);
-    }
-
-    posts.forEach(p=>{
-      const item=document.createElement("div");
-      item.className="video-item";
-
-      const v=document.createElement("video");
-      v.src=URL.createObjectURL(p.video);
-      v.muted=true;
-      v.loop=true;
-      v.playsInline=true;
-      v.controls=true;
-
-      const o=document.createElement("div");
-      o.className="video-overlay";
-      o.textContent=p.caption||"";
-
-      item.append(v,o);
-      container.appendChild(item);
-    });
+    renderProfileVideos(req.result.filter(p=>p.username===currentUser()).reverse());
   };
+}
+
+function renderProfileVideos(posts){
+  const container=document.getElementById("profileVideos");
+  if(!container)return;
+  container.innerHTML="";
+
+  if(!posts.length){
+    const empty=document.createElement("p");
+    empty.id="noVideos";
+    empty.textContent="You haven't posted any videos yet.";
+    container.appendChild(empty);
+    return;
+  }
+
+  posts.forEach(p=>{
+    const item=document.createElement("div");
+    item.className="video-item";
+
+    const v=document.createElement("video");
+    v.muted=true;
+    v.loop=true;
+    v.playsInline=true;
+    v.controls=true;
+    if(p.video instanceof Blob) v.src=URL.createObjectURL(p.video);
+    else if(p.video_url) v.src=p.video_url;
+
+    const o=document.createElement("div");
+    o.className="video-overlay";
+    o.textContent=p.caption||"";
+
+    item.append(v,o);
+    container.appendChild(item);
+  });
 }
 
 function openDB(){
