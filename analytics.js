@@ -33,13 +33,20 @@ async function loadAnalytics(){
         if(followerResult.error)throw followerResult.error;
         window.beyondAnalyticsFollowers=followerResult.count||0;
         render();
-        if(analyticsChannel) client.removeChannel(analyticsChannel);
-        analyticsChannel=client.channel("beyond-analytics-"+user.id)
+        if(analyticsChannel){try{client.removeChannel(analyticsChannel)}catch(e){console.warn("Beyond analytics realtime cleanup:",e)}analyticsChannel=null;}
+        const channel=client.channel("beyond-analytics-"+user.id)
           .on("postgres_changes",{event:"*",schema:"public",table:"videos",filter:"user_id=eq."+user.id},()=>loadAnalytics())
           .on("postgres_changes",{event:"*",schema:"public",table:"follows",filter:"following_id=eq."+user.id},()=>loadAnalytics())
           .on("postgres_changes",{event:"*",schema:"public",table:"likes"},()=>loadAnalytics())
-          .on("postgres_changes",{event:"*",schema:"public",table:"comments"},()=>loadAnalytics())
-          .subscribe();
+          .on("postgres_changes",{event:"*",schema:"public",table:"comments"},()=>loadAnalytics());
+        channel.subscribe(status=>{
+          if(status==="SUBSCRIBED"){analyticsChannel=channel;return;}
+          if(status==="CHANNEL_ERROR"||status==="TIMED_OUT"||status==="CLOSED"){
+            if(analyticsChannel===channel)analyticsChannel=null;
+            try{client.removeChannel(channel)}catch(e){console.warn("Beyond analytics realtime cleanup:",e)}
+            if(document.visibilityState!=="hidden")setTimeout(()=>loadAnalytics(),5000);
+          }
+        });
         return;
       }
     }
