@@ -25,27 +25,38 @@ async function loadNotifications(){
         if(vError)throw vError;
         const ids=(videos||[]).map(v=>v.id);
         const [followResult,likeResult,commentResult]=await Promise.all([
-          db.from("follows").select("follower_id,following_id,created_at,profiles!follows_follower_id_fkey(username,display_name)").eq("following_id",user.id).order("created_at",{ascending:false}).limit(100),
-          ids.length?db.from("likes").select("user_id,video_id,created_at,profiles!likes_user_id_fkey(username,display_name)").in("video_id",ids).order("created_at",{ascending:false}).limit(100):Promise.resolve({data:[],error:null}),
-          ids.length?db.from("comments").select("user_id,video_id,content,created_at,profiles!comments_user_id_fkey(username,display_name)").in("video_id",ids).order("created_at",{ascending:false}).limit(100):Promise.resolve({data:[],error:null})
+          db.from("follows").select("follower_id,following_id,created_at").eq("following_id",user.id).order("created_at",{ascending:false}).limit(100),
+          ids.length?db.from("likes").select("user_id,video_id,created_at").in("video_id",ids).order("created_at",{ascending:false}).limit(100):Promise.resolve({data:[],error:null}),
+          ids.length?db.from("comments").select("id,user_id,video_id,content,created_at").in("video_id",ids).order("created_at",{ascending:false}).limit(100):Promise.resolve({data:[],error:null})
         ]);
         if(followResult.error)throw followResult.error;
         if(likeResult.error)throw likeResult.error;
         if(commentResult.error)throw commentResult.error;
+        const actorIds=[...new Set([
+          ...(followResult.data||[]).map(x=>x.follower_id),
+          ...(likeResult.data||[]).map(x=>x.user_id),
+          ...(commentResult.data||[]).map(x=>x.user_id)
+        ].filter(Boolean))];
+        let profileMap=new Map();
+        if(actorIds.length){
+          const {data:profiles,error:pError}=await db.from("profiles").select("id,username,display_name").in("id",actorIds);
+          if(pError)throw pError;
+          profileMap=new Map((profiles||[]).map(p=>[p.id,p]));
+        }
 
         const oldRead=new Set(read().filter(x=>x.read).map(x=>x.id));
         const events=[];
         (followResult.data||[]).forEach(x=>{
-          const actor=x.profiles?.username||x.profiles?.display_name||"Someone";
+          const profile=profileMap.get(x.follower_id),actor=profile?.username||profile?.display_name||"Someone";
           events.push({id:"follow:"+x.follower_id+":"+x.created_at,type:"follow",title:actor,message:"started following you.",createdAt:x.created_at,read:oldRead.has("follow:"+x.follower_id+":"+x.created_at)});
         });
         const videoMap=new Map((videos||[]).map(v=>[v.id,v]));
         (likeResult.data||[]).forEach(x=>{
-          const actor=x.profiles?.username||x.profiles?.display_name||"Someone",v=videoMap.get(x.video_id);
+          const profile=profileMap.get(x.user_id),actor=profile?.username||profile?.display_name||"Someone",v=videoMap.get(x.video_id);
           events.push({id:"like:"+x.user_id+":"+x.video_id+":"+x.created_at,type:"like",title:actor,message:"liked your video"+(v?.caption?' "'+v.caption+'"':"."),createdAt:x.created_at,read:oldRead.has("like:"+x.user_id+":"+x.video_id+":"+x.created_at)});
         });
         (commentResult.data||[]).forEach(x=>{
-          const actor=x.profiles?.username||x.profiles?.display_name||"Someone",v=videoMap.get(x.video_id);
+          const profile=profileMap.get(x.user_id),actor=profile?.username||profile?.display_name||"Someone",v=videoMap.get(x.video_id);
           events.push({id:"comment:"+x.id,type:"comment",title:actor,message:"commented on your video"+(v?.caption?' "'+v.caption+'"':": "+x.content),createdAt:x.created_at,read:oldRead.has("comment:"+x.id)});
         });
         (videos||[]).forEach(v=>{
