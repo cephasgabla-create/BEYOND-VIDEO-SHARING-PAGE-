@@ -474,11 +474,38 @@ function chatKey(name){return "beyondChat_"+String(name).trim().toLowerCase()}
 function loadChatMessages(name){const box=document.getElementById("chatMessages");if(!box)return;let msgs=[];try{msgs=JSON.parse(localStorage.getItem(chatKey(name))||"[]");if(!Array.isArray(msgs))msgs=[]}catch(e){msgs=[]}box.innerHTML='<div class="chat-bubble received">Welcome to Beyond! 👋</div>';const current=localStorage.getItem("beyondUsername");msgs.forEach(m=>{const d=document.createElement("div");d.className="chat-bubble "+(m.user===current?"sent":"received");d.textContent=String(m.text||"");box.appendChild(d)});box.scrollTop=box.scrollHeight}
 function sendMessage(){const input=document.getElementById("chatInput"),chatName=document.getElementById("chatName");if(!input||!chatName)return;const text=input.value.trim(),name=chatName.textContent.replace(/^@/,"").trim();if(!text)return;if(!localStorage.getItem("beyondUsername")){location.href="login.html";return}let msgs=[];try{msgs=JSON.parse(localStorage.getItem(chatKey(name))||"[]");if(!Array.isArray(msgs))msgs=[]}catch(e){msgs=[]}msgs.push({user:localStorage.getItem("beyondUsername"),text,createdAt:new Date().toISOString()});localStorage.setItem(chatKey(name),JSON.stringify(msgs));input.value="";loadChatMessages(name)}
 
-function openLive(){const p=document.getElementById("livePanel");if(!p)return;p.classList.add("open");const o=document.getElementById("liveOverlay");if(o)o.style.display="block";startLiveSimulation()}
-function closeLive(){document.getElementById("livePanel")?.classList.remove("open");const o=document.getElementById("liveOverlay");if(o)o.style.display="none";stopLiveSimulation()}
 let liveTimer=null;
-function startLiveSimulation(){stopLiveSimulation();liveTimer=setInterval(()=>{const el=document.getElementById("liveViewers");if(el){const current=parseInt(el.textContent,10)||128;el.textContent=Math.max(1,current+Math.floor(Math.random()*7)-3)}},2500)}
+let beyondLiveChannel=null;
+async function openLive(){
+  const p=document.getElementById("livePanel");if(!p)return;
+  p.classList.add("open");const o=document.getElementById("liveOverlay");if(o)o.style.display="block";
+  const cfg=(()=>{try{return JSON.parse(localStorage.getItem("beyondLiveConfig")||"{}")}catch{return {}}})();
+  if(cfg.roomId){
+    window.beyondLiveRoomId=cfg.roomId;
+    const title=document.getElementById("liveTitle");if(title)title.textContent=cfg.title||"Beyond Live";
+    subscribeBeyondLiveRoom(cfg.roomId);
+  }
+}
+function closeLive(){document.getElementById("livePanel")?.classList.remove("open");const o=document.getElementById("liveOverlay");if(o)o.style.display="none";stopLiveSimulation();if(beyondLiveChannel&&window.beyondDB){window.beyondDB.removeChannel(beyondLiveChannel);beyondLiveChannel=null}}
+function startLiveSimulation(){stopLiveSimulation()}
 function stopLiveSimulation(){if(liveTimer!==null){clearInterval(liveTimer);liveTimer=null}}
+function subscribeBeyondLiveRoom(roomId){
+  const db=window.beyondDB||initBeyondDatabase();if(!db||!roomId)return;
+  if(beyondLiveChannel)db.removeChannel(beyondLiveChannel);
+  beyondLiveChannel=db.channel("beyond-live-room-"+roomId)
+    .on("postgres_changes",{event:"INSERT",schema:"public",table:"live_messages",filter:"room_id=eq."+roomId},payload=>{
+      const row=payload.new||{};const box=document.getElementById("liveChat");if(!box)return;
+      const item=document.createElement("div");item.className="live-msg";const name=document.createElement("b");name.textContent="@"+(row.user_id||"Guest").slice(0,8);const msg=document.createElement("span");msg.textContent=row.content||"";item.append(name,msg);box.appendChild(item);box.scrollTop=box.scrollHeight;
+    })
+    .on("postgres_changes",{event:"INSERT",schema:"public",table:"live_reactions",filter:"room_id=eq."+roomId},payload=>{
+      const emoji=payload.new?.reaction;if(emoji){const f=document.createElement("span");f.className="reaction-floater";f.textContent=emoji;document.getElementById("reactionFloaters")?.appendChild(f);setTimeout(()=>f.remove(),1800)}
+    })
+    .on("postgres_changes",{event:"UPDATE",schema:"public",table:"live_rooms",filter:"id=eq."+roomId},payload=>{
+      const room=payload.new||{};const count=document.getElementById("liveViewers");if(count)count.textContent=String(room.viewer_count??0);
+      const status=document.getElementById("liveStatus");if(status&&!room.active)status.textContent="Live ended by the creator.";
+    })
+    .subscribe();
+}
 async function sendReaction(emoji){const f=document.createElement("span");f.className="reaction-floater";f.textContent=emoji;document.getElementById("reactionFloaters")?.appendChild(f);setTimeout(()=>f.remove(),1800);const roomId=window.beyondLiveRoomId;if(roomId&&typeof sendDatabaseReaction==="function"){try{const result=await sendDatabaseReaction(roomId,emoji);if(result?.error)throw result.error}catch(error){console.warn("Beyond Live reaction database unavailable:",error)}}}
 async function sendLiveMessage(){const input=document.getElementById("liveChatInput"),text=input?.value.trim();if(!text)return;const roomId=window.beyondLiveRoomId;if(roomId&&typeof sendDatabaseLiveMessage==="function"){try{const result=await sendDatabaseLiveMessage(roomId,text);if(result?.error)throw result.error;input.value="";return}catch(error){console.warn("Beyond Live database chat unavailable:",error)}}const user=localStorage.getItem("beyondUsername")||"Guest";const row=document.createElement("div");row.className="live-msg";const name=document.createElement("b");name.textContent="@"+user;const message=document.createElement("span");message.textContent=text;row.append(name,message);document.getElementById("liveChat")?.appendChild(row);input.value="";const box=document.getElementById("liveChat");if(box)box.scrollTop=box.scrollHeight}
 function followLiveCreator(btn){btn.textContent=btn.textContent.includes("Follow")?"✓ Following":" + Follow"}
