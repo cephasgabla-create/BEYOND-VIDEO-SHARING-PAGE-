@@ -1019,3 +1019,29 @@ create index if not exists messages_sender_receiver_idx
 
 create index if not exists messages_unread_receiver_idx
   on public.messages(receiver_id, read, created_at desc);
+
+
+-- Beyond messaging backend: unread-count RPC.
+create or replace function public.get_beyond_unread_message_count()
+returns bigint
+language sql
+security definer
+set search_path = public
+as $$
+  select count(*)::bigint
+  from public.messages
+  where receiver_id = auth.uid()
+    and read = false;
+$$;
+
+revoke all on function public.get_beyond_unread_message_count() from public;
+grant execute on function public.get_beyond_unread_message_count() to authenticated;
+
+-- Prevent users from changing message ownership or contents while marking messages read.
+drop policy if exists "receivers can mark messages read" on public.messages;
+do $$ begin
+  create policy "receivers can mark messages read" on public.messages
+    for update to authenticated
+    using (receiver_id = auth.uid())
+    with check (receiver_id = auth.uid());
+exception when duplicate_object then null; end $$;
