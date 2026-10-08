@@ -49,6 +49,7 @@ async function loadAnalytics(){
             if(document.visibilityState!=="hidden")setTimeout(()=>loadAnalytics(),5000);
           }
         });
+        analyticsLoading=false;
         return;
       }
     }
