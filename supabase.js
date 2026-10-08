@@ -319,3 +319,44 @@ function subscribeBeyondMessages(userId,callback){
       if(m.sender_id===userId||m.receiver_id===userId) callback(m);
     }).subscribe();
 }
+
+
+function subscribeBeyondNotifications(userId,callback){
+  const db=beyondDB||initBeyondDatabase();
+  if(!db||!userId||typeof callback!=="function") return null;
+  const channel=db.channel("beyond-notification-stream-"+userId)
+    .on("postgres_changes",{event:"INSERT",schema:"public",table:"notifications",filter:"user_id=eq."+userId},payload=>callback(payload.new||{}))
+    .on("postgres_changes",{event:"UPDATE",schema:"public",table:"notifications",filter:"user_id=eq."+userId},payload=>callback(payload.new||{}))
+    .on("postgres_changes",{event:"DELETE",schema:"public",table:"notifications",filter:"user_id=eq."+userId},payload=>callback(payload.old||{}))
+    .subscribe();
+  return channel;
+}
+
+async function updateBeyondNotificationBadge(selector="#beyondNotificationBadge"){
+  const badge=document.querySelector(selector);
+  if(!badge) return 0;
+  try{
+    const count=await getBeyondUnreadNotificationCount();
+    badge.textContent=count>99?"99+":String(count);
+    badge.hidden=count<=0;
+    return count;
+  }catch(error){
+    badge.hidden=true;
+    return 0;
+  }
+}
+
+function initBeyondNotificationBadge(selector="#beyondNotificationBadge"){
+  const start=async()=>{
+    const db=beyondDB||initBeyondDatabase();
+    if(!db)return;
+    const user=await getCurrentBeyondUser();
+    if(!user)return;
+    await updateBeyondNotificationBadge(selector);
+    const channel=subscribeBeyondNotifications(user.id,async()=>{
+      await updateBeyondNotificationBadge(selector);
+    });
+    window.beyondNotificationBadgeChannel=channel;
+  };
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",start,{once:true});else start();
+}
