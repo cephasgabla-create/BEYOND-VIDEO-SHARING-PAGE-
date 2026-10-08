@@ -67,7 +67,12 @@ async function openConversation(id){
 async function renderConversation(){
   try{
     const rows=await getBeyondConversation(currentOtherId),box=$("messageList");
-    box.innerHTML=rows.length?rows.map(m=>"<div class='bubble "+(m.sender_id===currentUser.id?"mine":"")+"'>"+esc(m.content)+"<time>"+new Date(m.created_at).toLocaleString()+"</time></div>").join(""):"<div class='empty-state'>Start the conversation.</div>";
+    box.innerHTML=rows.length?rows.map((m,i)=>{
+      const mine=m.sender_id===currentUser.id;
+      const lastMine=mine&&!rows.slice(i+1).some(x=>x.sender_id===currentUser.id);
+      const receipt=mine&&lastMine?"<span class='read-receipt'>"+(m.read?"✓✓ Seen":"✓ Sent")+"</span>":"";
+      return "<div class='bubble "+(mine?"mine":"")+"'>"+esc(m.content)+"<time>"+new Date(m.created_at).toLocaleString()+receipt+"</time></div>";
+    }).join(""):"<div class='empty-state'>Start the conversation.</div>";
     box.scrollTop=box.scrollHeight;
   }catch(e){setStatus(e.message)}
 }
