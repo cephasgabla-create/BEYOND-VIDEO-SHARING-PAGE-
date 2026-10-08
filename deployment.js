@@ -2,7 +2,7 @@ const repoOwner="cephasgabla-create";
 const repoName="BEYOND-VIDEO-SHARING-PAGE-";
 const repoUrl="https://github.com/"+repoOwner+"/"+repoName;
 const actionsUrl=repoUrl+"/actions";
-const siteUrl=location.origin+location.pathname.replace(/\\/[^/]*$/,"/");
+const siteUrl=location.origin+location.pathname.replace(/\/[^/]*$/,"/");
 const apiUrl="https://api.github.com/repos/"+repoOwner+"/"+repoName+"/actions/runs?branch=main&per_page=20";
 const preferredWorkflow="pages build and deployment";
 const manualWorkflow="Deploy Beyond to GitHub Pages";
@@ -44,8 +44,12 @@ function duration(run){
 }
 
 function escapeHTML(value){
-  return String(value??"").replace(/[&<>"']/g,m=>({
-    "&":"&amp;","<":"&lt;",">":"&gt;",""":"&quot;","'":"&#039;"
+  return String(value??"").replace(/[&<>"\']/g,m=>({
+    "&":"&amp;",
+    "<":"&lt;",
+    ">":"&gt;",
+    '"' :"&quot;",
+    "\'":"&#039;"
   }[m]));
 }
 
