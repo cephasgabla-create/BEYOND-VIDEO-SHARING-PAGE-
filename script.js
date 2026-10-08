@@ -458,25 +458,13 @@ async function loadBeyondDiscover(){
  if(!db){renderDiscoverFallback(grid);return}
  grid.innerHTML="<p>Loading Beyond trends…</p>";
  try{
-  const {data:videos,error}=await db.from("videos").select("id,user_id,video_url,caption,hashtags,views_count,likes_count,created_at,profiles(username,display_name,avatar_url)").eq("status","published").order("created_at",{ascending:false}).limit(150);
+  const {data,error}=await db.rpc("get_beyond_discover",{p_limit:30});
   if(error)throw error;
-  const rows=videos||[];
-  const ids=rows.map(v=>v.id);
-  const [{data:likes},{data:comments},{data:follows}]=await Promise.all([
-    ids.length?db.from("likes").select("video_id"):Promise.resolve({data:[]}),
-    ids.length?db.from("comments").select("video_id"):Promise.resolve({data:[]}),
-    db.from("follows").select("following_id")
-  ]);
-  const likeCount=countBy(likes||[],"video_id"),commentCount=countBy(comments||[],"video_id");
-  const creatorFollowers=countBy(follows||[],"following_id");
-  const now=Date.now();
-  const scored=rows.map(v=>{
-    const age=Math.max(0,(now-new Date(v.created_at).getTime())/3600000);
-    const engagement=(likeCount[v.id]||Number(v.likes_count||0))*3+(commentCount[v.id]||0)*5+Math.log1p(Number(v.views_count||0))*2;
-    const velocity=engagement/Math.max(1,age+2);
-    return {...v,_score:velocity+Math.min(20,Number(creatorFollowers[v.user_id]||0)*.5)};
-  }).sort((a,b)=>b._score-a._score);
-  renderDiscover(grid,scored,likeCount,commentCount,creatorFollowers);
+  const payload=data||{};
+  const videos=Array.isArray(payload.videos)?payload.videos:[];
+  const hashtags=Array.isArray(payload.hashtags)?payload.hashtags:[];
+  const creators=Array.isArray(payload.creators)?payload.creators:[];
+  renderDiscover(grid,videos,hashtags,creators);
   enableDiscoverRealtime();
  }catch(error){
   console.error("Discover load failed:",error);
@@ -488,40 +476,43 @@ function countBy(rows,key){
  const out={};rows.forEach(row=>{const value=row[key];if(value!==undefined&&value!==null)out[value]=(out[value]||0)+1});return out;
 }
 
-function renderDiscover(grid,videos,likeCount,commentCount,creatorFollowers){
+function renderDiscover(grid,videos,hashtags,creators){
  const q=(document.getElementById("discoverInput")?.value||"").trim().toLowerCase();
- const hashtags={};
- const creators={};
- videos.forEach(v=>{
-   String(v.hashtags||"").toLowerCase().split(/\s+/).map(x=>x.replace(/^#/,"").trim()).filter(Boolean).forEach(tag=>{hashtags[tag]=(hashtags[tag]||0)+1});
-   const p=v.profiles||{};if(p.username)creators[p.username]=(creators[p.username]||0)+1;
- });
- const topTags=Object.entries(hashtags).sort((a,b)=>b[1]-a[1]).slice(0,12);
- const topCreators=Object.entries(creators).sort((a,b)=>b[1]-a[1]).slice(0,8);
  const filtered=videos.filter(v=>{
    if(beyondDiscoverCategory!=="all"){
      const hay=(String(v.hashtags||"")+" "+String(v.caption||"")).toLowerCase();
      if(!hay.includes(beyondDiscoverCategory.toLowerCase()))return false;
    }
    if(!q)return true;
-   return (String(v.caption||"")+" "+String(v.hashtags||"")+" "+String(v.profiles?.username||"")).toLowerCase().includes(q);
+   return (String(v.caption||"")+" "+String(v.hashtags||"")+" "+String(v.username||"")).toLowerCase().includes(q);
  });
  grid.innerHTML="";
  const tagSection=document.createElement("div");tagSection.className="trend-card";
  tagSection.innerHTML="<span>🔥</span><h3>Trending Hashtags</h3>";
- topTags.forEach(([tag,count])=>{const b=document.createElement("button");b.textContent="#"+tag+" • "+count+" videos";b.onclick=()=>{const i=document.getElementById("discoverInput");if(i)i.value="#"+tag;filterDiscover()};tagSection.appendChild(b)});
+ hashtags.slice(0,12).forEach(t=>{
+   const b=document.createElement("button");
+   b.textContent="#"+t.tag+" • "+Number(t.videos||0)+" videos";
+   b.onclick=()=>{const i=document.getElementById("discoverInput");if(i)i.value="#"+t.tag;filterDiscover()};
+   tagSection.appendChild(b);
+ });
+ if(!hashtags.length){const p=document.createElement("p");p.textContent="No trending hashtags yet.";tagSection.appendChild(p)}
  grid.appendChild(tagSection);
  const creatorSection=document.createElement("div");creatorSection.className="trend-card";
  creatorSection.innerHTML="<span>👑</span><h3>Active Creators</h3>";
- topCreators.forEach(([name,count])=>{const p=document.createElement("p");p.textContent="@"+name+" • "+count+" recent videos";creatorSection.appendChild(p)});
+ creators.slice(0,8).forEach(c=>{
+   const p=document.createElement("p");
+   p.textContent="@"+(c.username||"Beyond creator")+" • "+Number(c.followers||0)+" followers • "+Number(c.videos||0)+" videos";
+   creatorSection.appendChild(p);
+ });
+ if(!creators.length){const p=document.createElement("p");p.textContent="No active creators yet.";creatorSection.appendChild(p)}
  grid.appendChild(creatorSection);
  const videoSection=document.createElement("div");videoSection.className="trend-card discover-videos";
  videoSection.innerHTML="<span>▶</span><h3>Trending Videos</h3>";
  if(!filtered.length){const p=document.createElement("p");p.textContent="No matching trending videos.";videoSection.appendChild(p)}
  filtered.slice(0,20).forEach(v=>{
    const row=document.createElement("div");row.className="discover-video-row";
-   const title=document.createElement("strong");title.textContent="@"+(v.profiles?.username||"BeyondCreator");
-   const meta=document.createElement("span");meta.textContent=" "+Number(v.views_count||0)+" views • "+(likeCount[v.id]||Number(v.likes_count||0))+" likes • "+(commentCount[v.id]||0)+" comments";
+   const title=document.createElement("strong");title.textContent="@"+(v.username||"BeyondCreator");
+   const meta=document.createElement("span");meta.textContent=" "+Number(v.views_count||0)+" views • "+Number(v.likes_count||0)+" likes • "+Number(v.comments_count||0)+" comments";
    const cap=document.createElement("p");cap.textContent=v.caption||v.hashtags||"Beyond video";
    row.append(title,meta,cap);videoSection.appendChild(row);
  });
