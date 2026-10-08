@@ -2,8 +2,10 @@ const repoOwner="cephasgabla-create";
 const repoName="BEYOND-VIDEO-SHARING-PAGE-";
 const repoUrl="https://github.com/"+repoOwner+"/"+repoName;
 const actionsUrl=repoUrl+"/actions";
-const siteUrl=location.origin+location.pathname.replace(/\/[^/]*$/,"/");
-const apiUrl="https://api.github.com/repos/"+repoOwner+"/"+repoName+"/actions/runs?branch=main&per_page=10";
+const siteUrl=location.origin+location.pathname.replace(/\\/[^/]*$/,"/");
+const apiUrl="https://api.github.com/repos/"+repoOwner+"/"+repoName+"/actions/runs?branch=main&per_page=20";
+const preferredWorkflow="pages build and deployment";
+const manualWorkflow="Deploy Beyond to GitHub Pages";
 
 function stateLabel(run){
   if(run.status==="completed"){
@@ -43,25 +45,31 @@ function duration(run){
 
 function escapeHTML(value){
   return String(value??"").replace(/[&<>"']/g,m=>({
-    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"
+    "&":"&amp;","<":"&lt;",">":"&gt;",""":"&quot;","'":"&#039;"
   }[m]));
+}
+
+function selectRuns(runs){
+  const pages=runs.filter(r=>r.name===preferredWorkflow);
+  const manual=runs.filter(r=>r.name===manualWorkflow);
+  return {primary:pages[0]||manual[0]||runs[0]||null, history:[...pages,...manual]};
 }
 
 function renderChecks(run){
   const base=[
-    ["Pages workflow","GitHub Actions workflow for the main branch."],
+    ["Pages workflow","GitHub Pages deployment workflow for the main branch."],
     ["Entry page","index.html is the production entry point."],
     ["Route fallback","404.html is present for GitHub Pages routes."],
     ["Static asset mode",".nojekyll prevents unwanted Jekyll processing."]
   ];
 
   const live=run?[
-    ["Latest GitHub Actions run",stateLabel(run)+" • "+timeAgo(run.updated_at)],
+    ["Latest GitHub Pages run",stateLabel(run)+" • "+timeAgo(run.updated_at)],
     ["Branch",run.head_branch||"main"],
     ["Commit",(run.head_sha||"").slice(0,7)+" • "+(run.head_commit?.message||"latest push")],
     ["Workflow duration",duration(run)]
   ]:[
-    ["Latest GitHub Actions run","Unable to read GitHub Actions right now."]
+    ["Latest GitHub Pages run","Unable to read GitHub Actions right now."]
   ];
 
   document.getElementById("checks").innerHTML=[...base,...live].map(([a,b])=>
@@ -73,7 +81,7 @@ function renderHistory(runs){
   const box=document.getElementById("deploymentHistory");
   if(!box) return;
 
-  const relevant=runs.filter(r=>r.name==="Deploy Beyond to GitHub Pages").slice(0,6);
+  const relevant=runs.slice(0,8);
   if(!relevant.length){
     box.innerHTML='<div class="historyEmpty">No GitHub Pages workflow history is available yet.</div>';
     return;
@@ -86,8 +94,8 @@ function renderHistory(runs){
     return '<a class="historyItem" href="'+escapeHTML(run.html_url||actionsUrl)+'" target="_blank" rel="noopener">'+
       '<span class="historyDot '+cls+'"></span>'+
       '<span class="historyMain"><b>'+escapeHTML(stateLabel(run))+'</b>'+
-      '<small>'+escapeHTML(run.head_branch||"main")+" • "+escapeHTML((run.head_sha||"").slice(0,7))+" • "+escapeHTML(timeAgo(run.updated_at))+'</small></span>'+
-      '<span class="historyDuration">'+escapeHTML(duration(run))+' ↗</span>'+
+      '<small>'+escapeHTML(run.name||"GitHub Pages")+" • "+escapeHTML(run.head_branch||"main")+" • "+escapeHTML((run.head_sha||"").slice(0,7))+" • "+escapeHTML(timeAgo(run.updated_at))+'</small></span>'+
+      '<span class="historyDuration">'+escapeHTML(duration(run))+" ↗</span>"+
     '</a>';
   }).join("");
 }
@@ -105,7 +113,8 @@ async function refreshDeployment(){
     if(!res.ok) throw new Error("GitHub API "+res.status);
     const data=await res.json();
     const runs=data.workflow_runs||[];
-    const run=runs.find(r=>r.name==="Deploy Beyond to GitHub Pages")||runs[0];
+    const selected=selectRuns(runs);
+    const run=selected.primary;
     if(!run) throw new Error("No workflow runs found");
 
     badge.textContent=stateLabel(run);
@@ -114,24 +123,16 @@ async function refreshDeployment(){
     document.getElementById("checkedAt").textContent=new Date().toLocaleTimeString();
 
     renderChecks(run);
-    renderHistory(runs);
+    renderHistory(selected.history);
 
     const link=document.getElementById("latestRunLink");
     if(link) link.href=run.html_url||actionsUrl;
 
-    const commit=document.getElementById("commitDetails");
-    if(commit){
-      commit.innerHTML=
-        "<b>"+escapeHTML((run.head_sha||"").slice(0,7))+"</b> "+
-        escapeHTML(run.head_commit?.message||"Latest push");
-    }
-
     const updated=document.getElementById("runUpdated");
     if(updated) updated.textContent=run.updated_at?"Updated "+timeAgo(run.updated_at):"—";
 
-    const autoRefresh=run.status==="queued"||run.status==="in_progress";
     clearTimeout(window.beyondDeploymentTimer);
-    if(autoRefresh){
+    if(run.status==="queued"||run.status==="in_progress"){
       window.beyondDeploymentTimer=setTimeout(refreshDeployment,15000);
     }
   }catch(err){
