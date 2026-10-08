@@ -4,13 +4,6 @@ const button=document.getElementById("signupButton");
 
 function configured(){return typeof beyondDatabaseConfigured==="function"&&beyondDatabaseConfigured()}
 
-function saveSession(user,profile,remember=true){
-  localStorage.setItem("beyondLoggedIn","true");
-  sessionStorage.removeItem("beyondLoggedIn");
-  localStorage.setItem("beyondEmail",user?.email||"");
-  localStorage.setItem("beyondUsername",profile?.username||user?.user_metadata?.username||"Beyond User");
-}
-
 form.addEventListener("submit",async e=>{
   e.preventDefault();
   message.textContent="";
@@ -50,7 +43,6 @@ form.addEventListener("submit",async e=>{
     const {data:ensuredProfile,error:ensureError}=await db.rpc("ensure_beyond_profile",{requested_username:username,requested_display_name:username});
     if(ensureError)throw ensureError;
     profile=ensuredProfile;
-    saveSession(data.user,profile,true);
     location.replace("index.html");
   }catch(error){
     console.error(error);
