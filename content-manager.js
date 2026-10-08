@@ -214,7 +214,7 @@ function openEditor(id){
   document.getElementById("editCommentsEnabled").checked=v.commentsEnabled!==false;
   document.getElementById("editStatus").value=v.status||"published";
   const video=document.getElementById("editVideoPreview");
-  const src=v.videoUrl||(v.video?(localObjectUrls.get(String(v.id))||(localObjectUrls.set(String(v.id),URL.createObjectURL(v.video)),localObjectUrls.get(String(v.id))):"");
+  const src=v.videoUrl||(v.video?(localObjectUrls.get(String(v.id))||(localObjectUrls.set(String(v.id),URL.createObjectURL(v.video)),localObjectUrls.get(String(v.id))):""));
   video.src=src;video.load();
   updateCaptionCount();document.getElementById("editModal").classList.add("show");
 }
