@@ -821,3 +821,11 @@ document.addEventListener("DOMContentLoaded",()=>{
  new MutationObserver(sync).observe(feed,{childList:true,subtree:true});
  sync();
 })();
+
+/* Activity navigation compatibility */
+function toggleBeyondNotificationPanel(){
+  window.location.href="notifications.html";
+}
+function renderBeyondNotificationPanel(){
+  window.location.href="notifications.html";
+}
