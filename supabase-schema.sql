@@ -315,5 +315,26 @@ create policy "dashboard_customizations_owner_update" on public.dashboard_custom
 
 -- Creator moderation: allow video owners to hide comments on their own videos.
 alter table public.comments add column if not exists hidden_by_creator boolean not null default false;
-create policy "video owners can hide comments" on public.comments for update to authenticated using (exists (select 1 from public.videos v where v.id = comments.video_id and v.user_id = auth.uid())) with check (exists (select 1 from public.videos v where v.id = comments.video_id and v.user_id = auth.uid()));
-create policy "video owners can delete comments" on public.comments for delete to authenticated using (exists (select 1 from public.videos v where v.id = comments.video_id and v.user_id = auth.uid()) or user_id = auth.uid());
+do $$ begin
+  create policy "video owners can hide comments" on public.comments for update to authenticated
+    using (exists (select 1 from public.videos v where v.id = comments.video_id and v.user_id = auth.uid()))
+    with check (exists (select 1 from public.videos v where v.id = comments.video_id and v.user_id = auth.uid()));
+exception when duplicate_object then null; end $$;
+do $$ begin
+  create policy "video owners can delete comments" on public.comments for delete to authenticated
+    using (exists (select 1 from public.videos v where v.id = comments.video_id and v.user_id = auth.uid()) or user_id = auth.uid());
+exception when duplicate_object then null; end $$;
+
+-- Realtime for Beyond Live analytics.
+alter table public.live_rooms replica identity full;
+alter table public.live_messages replica identity full;
+alter table public.live_reactions replica identity full;
+do $$ begin
+  alter publication supabase_realtime add table public.live_rooms;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table public.live_messages;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table public.live_reactions;
+exception when duplicate_object then null; end $$;
