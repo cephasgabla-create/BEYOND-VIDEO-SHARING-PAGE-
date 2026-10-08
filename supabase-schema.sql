@@ -1345,7 +1345,7 @@ language sql security definer set search_path=public as $$
 $$;
 create or replace function public.is_beyond_blocked(target_user_id uuid)
 returns boolean language sql security definer set search_path=public as $$
- select exists(select 1 from public.blocked_users where blocker_id=auth.uid() and blocked_id=target_user_id);
+ select exists(select 1 from public.blocked_users where (blocker_id=auth.uid() and blocked_id=target_user_id) or (blocker_id=target_user_id and blocked_id=auth.uid()));
 $$;
 create or replace function public.set_beyond_block_user(target_user_id uuid, should_block boolean)
 returns boolean language plpgsql security definer set search_path=public as $$
