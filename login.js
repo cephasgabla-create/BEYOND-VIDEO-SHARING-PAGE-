@@ -16,8 +16,8 @@ async function login(){
     const {data,error}=await db.auth.signInWithPassword({email,password:pass});if(error)throw error;
     const {data:profile,error:profileError}=await db.rpc("ensure_beyond_profile");if(profileError)throw profileError;
     const username=profile?.username||data.user?.user_metadata?.username||email.split("@")[0]||"Beyond User";
-    localStorage.setItem("beyondLoggedIn","true");localStorage.setItem("beyondEmail",email);localStorage.setItem("beyondUsername",username);
-    if(!remember){sessionStorage.setItem("beyondLoggedIn","true");localStorage.removeItem("beyondLoggedIn")}else sessionStorage.removeItem("beyondLoggedIn");
+    ["beyondLoggedIn","beyondEmail","beyondUsername"].forEach(k=>localStorage.removeItem(k));sessionStorage.removeItem("beyondLoggedIn");
+    if(!remember){try{sessionStorage.setItem("beyondSessionPreference","session-only")}catch{}}else{try{sessionStorage.removeItem("beyondSessionPreference")}catch{}}
     location.replace(getRedirect());
   }catch(error){console.error(error);message.textContent=friendlyError(error);button.disabled=false;button.textContent="Log in"}
 }
