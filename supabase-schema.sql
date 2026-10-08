@@ -741,3 +741,56 @@ alter table public.video_views replica identity full;
 do $$ begin
   alter publication supabase_realtime add table public.video_views;
 exception when duplicate_object then null; end $$;
+
+
+-- Beyond follower history for Creator Studio Audience & Followers.
+create table if not exists public.follower_events (
+  id bigint generated always as identity primary key,
+  creator_id uuid not null references auth.users(id) on delete cascade,
+  follower_id uuid not null references auth.users(id) on delete cascade,
+  event_type text not null check (event_type in ('follow','unfollow')),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists follower_events_creator_time_idx
+  on public.follower_events(creator_id, created_at desc);
+create index if not exists follower_events_follower_time_idx
+  on public.follower_events(follower_id, created_at desc);
+
+alter table public.follower_events enable row level security;
+
+do $$ begin
+  create policy "creators can read their follower history"
+    on public.follower_events for select to authenticated
+    using (creator_id = auth.uid());
+exception when duplicate_object then null; end $$;
+
+create or replace function public.log_beyond_follower_event()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if tg_op = 'INSERT' then
+    insert into public.follower_events(creator_id, follower_id, event_type)
+    values (new.following_id, new.follower_id, 'follow');
+    return new;
+  elsif tg_op = 'DELETE' then
+    insert into public.follower_events(creator_id, follower_id, event_type)
+    values (old.following_id, old.follower_id, 'unfollow');
+    return old;
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists beyond_log_follow_event on public.follows;
+create trigger beyond_log_follow_event
+after insert or delete on public.follows
+for each row execute function public.log_beyond_follower_event();
+
+alter table public.follower_events replica identity full;
+do $$ begin
+  alter publication supabase_realtime add table public.follower_events;
+exception when duplicate_object then null; end $$;
