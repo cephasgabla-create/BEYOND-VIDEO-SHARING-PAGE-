@@ -1,4 +1,31 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Beyond - Page not found</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#07080b;color:#fff;font-family:Arial,sans-serif;text-align:center}a{display:inline-block;margin-top:16px;padding:12px 18px;border-radius:10px;background:#fff;color:#111;text-decoration:none;font-weight:700}</style></head>
-<body><main><h1>Beyond</h1><h2>Page not found</h2><p>The page you requested does not exist.</p><a href="./">Go to Beyond</a></main></body></html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Beyond - Redirecting</title>
+<meta name="robots" content="noindex">
+<style>
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:#07080b;color:#fff;font-family:Arial,sans-serif;text-align:center}
+main{max-width:520px;padding:32px}a{display:inline-block;margin-top:16px;padding:12px 18px;border-radius:10px;background:#fff;color:#111;text-decoration:none;font-weight:700}
+</style>
+<script>
+(function(){
+  var base="/BEYOND-VIDEO-SHARING-PAGE-/";
+  var path=location.pathname;
+  if(path===base || path===base+"index.html") return;
+  var relative=path.indexOf(base)===0 ? path.slice(base.length) : "";
+  var known=/^(login|signup|profile|upload|search|creator-studio|content-manager|analytics|live-analytics|audience|monetization|notifications|comments-manager|creator-settings|dashboard-customization|database-setup)\.html$/i;
+  if(known.test(relative)){ location.replace(base+relative); }
+})();
+</script>
+</head>
+<body>
+<main>
+<h1>Beyond</h1>
+<h2>Page not found</h2>
+<p>The requested Beyond page could not be found.</p>
+<a href="./index.html">Open Beyond Home</a>
+</main>
+</body>
+</html>
