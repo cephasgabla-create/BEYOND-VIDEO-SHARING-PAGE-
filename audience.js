@@ -25,9 +25,79 @@ function dateLabel(value){
   return d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"});
 }
 
-function initAudience(){
+async function initAudience(){
   followerHistory=readArray("beyondFollowerHistory");
   followingActivity=readArray("beyondFollowingActivity");
+
+  try{
+    const client=window.beyondDB||(typeof initBeyondDatabase==="function"?initBeyondDatabase():null);
+    if(client){
+      const {data:{user}}=await client.auth.getUser();
+      if(user){
+        const [followersResult,followingResult,eventsResult]=await Promise.all([
+          client.from("follows").select("follower_id,created_at").eq("following_id",user.id).order("created_at",{ascending:true}),
+          client.from("follows").select("following_id,created_at,profiles(username,display_name)").eq("follower_id",user.id).order("created_at",{ascending:false}).limit(20),
+          client.from("follows").select("follower_id,following_id,created_at").or("following_id.eq."+user.id+",follower_id.eq."+user.id).order("created_at",{ascending:false}).limit(100)
+        ]);
+        if(followersResult.error)throw followersResult.error;
+        if(followingResult.error)throw followingResult.error;
+        if(eventsResult.error)throw eventsResult.error;
+
+        const followers=followersResult.data||[];
+        const following=followingResult.data||[];
+        const events=eventsResult.data||[];
+        const currentFollowers=followers.length;
+        const currentFollowing=following.length;
+
+        const dayMap=new Map();
+        followers.forEach(row=>{
+          const day=String(row.created_at||"").slice(0,10);
+          if(day)dayMap.set(day,(dayMap.get(day)||0)+1);
+        });
+        let running=0;
+        const growthRows=[...dayMap.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([date,gained])=>{
+          running+=gained;
+          return {date,followers:running,newFollowers:gained,lostFollowers:0};
+        });
+        followerHistory=growthRows.slice(-30);
+
+        followingActivity=following.map(row=>({
+          username:row.profiles?.username||row.profiles?.display_name||"Creator",
+          action:"Following",
+          createdAt:row.created_at
+        }));
+
+        const latestDay=growthRows[growthRows.length-1];
+        const previousDay=growthRows[growthRows.length-2];
+        const newFollowers=latestDay?latestDay.newFollowers:0;
+        const net=newFollowers;
+
+        document.getElementById("followers").textContent=format(currentFollowers);
+        document.getElementById("following").textContent=format(currentFollowing);
+        document.getElementById("newFollowers").textContent=format(newFollowers);
+        document.getElementById("netGrowth").textContent=(net>0?"+":"")+format(net);
+        document.getElementById("followerChange").textContent=growthRows.length?"Live Supabase follower data":"No followers yet";
+
+        const activeUsers=new Set(events.map(item=>item.follower_id===user.id?item.following_id:item.follower_id)).size;
+        const previousFollowers=previousDay?previousDay.followers:Math.max(currentFollowers-newFollowers,0);
+        const growthRate=previousFollowers?((net/previousFollowers)*100):0;
+        const ratio=currentFollowing?currentFollowers/currentFollowing:0;
+
+        document.getElementById("activeAudience").textContent=format(activeUsers);
+        document.getElementById("growthRate").textContent=growthRate.toFixed(1)+"%";
+        document.getElementById("ratio").textContent=currentFollowing?ratio.toFixed(1):"0";
+        document.getElementById("source").textContent=activeUsers?"Supabase follow activity":"No activity yet";
+
+        renderActivity();
+        renderHistory();
+        drawGrowthChart();
+        subscribeAudienceRealtime(client,user.id);
+        return;
+      }
+    }
+  }catch(error){
+    console.warn("Beyond Supabase audience data unavailable:",error);
+  }
 
   const followers=number(localStorage.getItem("beyondFollowers"));
   const following=number(localStorage.getItem("beyondFollowing"));
@@ -35,30 +105,21 @@ function initAudience(){
   const newFollowers=number(latest.newFollowers??latest.gained);
   const lostFollowers=number(latest.lostFollowers??latest.lost);
   const net=newFollowers-lostFollowers;
-
   document.getElementById("followers").textContent=format(followers);
   document.getElementById("following").textContent=format(following);
   document.getElementById("newFollowers").textContent=format(newFollowers);
   document.getElementById("netGrowth").textContent=(net>0?"+":"")+format(net);
   document.getElementById("followerChange").textContent=followerHistory.length?"Growth data recorded":"No growth data yet";
-
-  const activeUsers=new Set(
-    followingActivity.map(item=>item.username||item.user||item.userId).filter(Boolean)
-  ).size;
+  const activeUsers=new Set(followingActivity.map(item=>item.username||item.user||item.userId).filter(Boolean)).size;
   const previousFollowers=Math.max(followers-net,0);
   const growthRate=previousFollowers?((net/previousFollowers)*100):0;
   const ratio=following?followers/following:0;
-
   document.getElementById("activeAudience").textContent=format(activeUsers);
   document.getElementById("growthRate").textContent=growthRate.toFixed(1)+"%";
   document.getElementById("ratio").textContent=following?ratio.toFixed(1):"0";
   document.getElementById("source").textContent=activeUsers?"Following activity":"Not available";
-
-  renderActivity();
-  renderHistory();
-  drawGrowthChart();
+  renderActivity();renderHistory();drawGrowthChart();
 }
-
 function renderActivity(){
   const box=document.getElementById("activity");
   const rows=followingActivity.slice(-7).reverse();
@@ -158,3 +219,11 @@ function drawGrowthChart(){
 }
 
 window.addEventListener("resize",drawGrowthChart);
+
+function subscribeAudienceRealtime(client,userId){
+  if(!client||!userId)return;
+  if(window.beyondAudienceChannel)client.removeChannel(window.beyondAudienceChannel);
+  window.beyondAudienceChannel=client.channel("beyond-audience-"+userId)
+    .on("postgres_changes",{event:"*",schema:"public",table:"follows",filter:"following_id=eq."+userId},()=>initAudience())
+    .subscribe();
+}
