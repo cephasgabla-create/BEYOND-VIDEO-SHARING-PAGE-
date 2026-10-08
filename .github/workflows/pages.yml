@@ -1,9 +1,6 @@
 name: Deploy Beyond to GitHub Pages
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
@@ -12,7 +9,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: beyond-manual-pages
   cancel-in-progress: true
 
 jobs:
@@ -36,6 +33,7 @@ jobs:
           test -f index.html
           test -f style.css
           test -f script.js
+          test -f 404.html
           touch .nojekyll
 
       - name: Upload Beyond site
