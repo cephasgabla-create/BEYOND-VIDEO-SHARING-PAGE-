@@ -78,7 +78,7 @@ function renderMessageRows(rows){
   box.innerHTML=filtered.length?filtered.map((m,i)=>{
     const mine=m.sender_id===currentUser.id;
     const lastMine=mine&&!filtered.slice(i+1).some(x=>x.sender_id===currentUser.id);
-    const receipt=mine&&lastMine?"<span class="read-receipt">"+(m.read?"✓✓ Seen":"✓ Sent")+"</span>":"";
+    const receipt=mine&&lastMine?'<span class="read-receipt">'+(m.read?"✓✓ Seen":"✓ Sent")+'</span>':"";
     return '<div class="bubble-wrap '+(mine?"mine":"")+'"><div class="bubble '+(mine?"mine":"")+'">'+esc(m.content)+'<time>'+new Date(m.created_at).toLocaleString()+receipt+'</time></div>'+messageActions(m)+'</div>';
   }).join(""):'<div class="empty-state">'+(q?"No matching messages.":"Start the conversation.")+"</div>";
   box.scrollTop=box.scrollHeight;
