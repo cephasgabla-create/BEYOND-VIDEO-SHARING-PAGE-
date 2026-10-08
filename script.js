@@ -298,89 +298,33 @@ function closeComments(){
 }
 
 async function addComment(){
-  const input=document.getElementById("commentInput");
-  const text=input.value.trim();
-  if(!text||currentPostId===null)return;
-
-  const username=localStorage.getItem("beyondUsername");
-  if(!username){alert("Please log in to comment.");location.href="login.html";return}
-
-  try{
-    const db=initBeyondDatabase();
-    const user=await getCurrentBeyondUser();
-
-    if(db&&user&&typeof currentPostId==="number"){
-      const {error}=await db.from("comments").insert({
-        video_id:currentPostId,
-        user_id:user.id,
-        content:text
-      });
-      if(error)throw error;
-      input.value="";
-      await loadComments(currentPostId);
-      const card=document.querySelector('[data-post-id="'+currentPostId+'"]');
-      if(card){
-        const button=card.querySelector(".comment-button");
-        if(button)await loadRemoteCommentCount(currentPostId,button);
-      }
-      return;
-    }
-  }catch(error){
-    console.error("Beyond Supabase comment failed:",error);
-    alert("Beyond could not post your comment right now.");
-    return;
-  }
-
-  const db=await openDatabase();
-  const tx=db.transaction("comments","readwrite");
-  tx.objectStore("comments").add({postId:currentPostId,username,text,createdAt:new Date().toISOString()});
-  tx.oncomplete=async()=>{
-    input.value="";
-    loadComments(currentPostId);
-    const card=document.querySelector('[data-post-id="'+currentPostId+'"]');
-    if(card){
-      const b=card.querySelector(".comment-button");
-      loadCommentCount(currentPostId,b);
-    }
-  };
+ const input=document.getElementById("commentInput");const text=input?.value.trim();
+ if(!text||currentPostId===null)return;
+ const db=initBeyondDatabase();const user=await getCurrentBeyondUser();
+ if(!db||!user){location.href="login.html";return}
+ if(typeof currentPostId!=="number"){alert("Comments are unavailable for this video.");return}
+ try{
+  const {error}=await db.from("comments").insert({video_id:currentPostId,user_id:user.id,content:text});
+  if(error)throw error;
+  input.value="";await loadComments(currentPostId);
+  const card=document.querySelector('[data-post-id="'+currentPostId+'"]');
+  const button=card?.querySelector(".comment-button");
+  if(button)await loadRemoteCommentCount(currentPostId,button);
+ }catch(error){console.error(error);alert("Could not post your comment.")}
 }
-
 async function loadComments(postId){
-  const list=document.getElementById("commentsList");
-  list.innerHTML="<p style='color:#777'>Loading...</p>";
-
-  try{
-    const db=initBeyondDatabase();
-    const user=await getCurrentBeyondUser();
-    if(db&&user&&typeof postId==="number"){
-      const {data,error}=await db.from("comments")
-        .select("id,user_id,content,created_at,profiles(username,display_name,avatar_url)")
-        .eq("video_id",postId)
-        .order("created_at",{ascending:true});
-      if(error)throw error;
-      list.innerHTML="";
-      if(!data.length){
-        list.innerHTML="<p style='color:#777;text-align:center;padding:30px'>No comments yet. Be the first!</p>";
-        return;
-      }
-      data.forEach(comment=>createRemoteComment(comment));
-      return;
-    }
-  }catch(error){
-    console.warn("Beyond remote comments unavailable:",error);
-  }
-
-  const localDb=await openDatabase();
-  const req=localDb.transaction("comments","readonly").objectStore("comments").getAll();
-  req.onsuccess=()=>{
-    const comments=req.result.filter(c=>c.postId===postId).reverse();
-    list.innerHTML="";
-    if(!comments.length){
-      list.innerHTML="<p style='color:#777;text-align:center;padding:30px'>No comments yet. Be the first!</p>";
-      return;
-    }
-    comments.forEach(createComment);
-  };
+ const list=document.getElementById("commentsList");if(!list)return;
+ list.innerHTML="<p style='color:#777'>Loading...</p>";
+ const db=initBeyondDatabase();const user=await getCurrentBeyondUser();
+ if(!db||!user){location.href="login.html";return}
+ if(typeof postId!=="number"){list.innerHTML="<p style='color:#777;text-align:center;padding:30px'>Comments are unavailable for this video.</p>";return}
+ try{
+  const {data,error}=await db.from("comments").select("id,user_id,content,created_at,profiles(username,display_name,avatar_url)").eq("video_id",postId).order("created_at",{ascending:true});
+  if(error)throw error;
+  list.innerHTML="";
+  if(!data?.length){list.innerHTML="<p style='color:#777;text-align:center;padding:30px'>No comments yet. Be the first!</p>";return}
+  data.forEach(createRemoteComment);
+ }catch(error){console.error(error);list.innerHTML="<p style='color:#777;text-align:center;padding:30px'>Could not load comments.</p>"}
 }
 
 function createRemoteComment(comment){
