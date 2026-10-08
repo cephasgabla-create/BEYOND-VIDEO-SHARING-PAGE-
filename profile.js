@@ -43,8 +43,15 @@ async function loadVideos(){
   req.onsuccess=()=>{
     const posts=req.result.filter(p=>p.username===currentUser()).reverse();
     const container=document.getElementById("profileVideos");
+    if(!container)return;
     container.innerHTML="";
-    document.getElementById("noVideos").style.display=posts.length?"none":"block";
+
+    if(!posts.length){
+      const empty=document.createElement("p");
+      empty.id="noVideos";
+      empty.textContent="You haven't posted any videos yet.";
+      container.appendChild(empty);
+    }
 
     posts.forEach(p=>{
       const item=document.createElement("div");
