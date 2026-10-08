@@ -28,10 +28,8 @@ async function login(){
     if(!db) throw new Error("Beyond database is unavailable.");
     const {data,error}=await db.auth.signInWithPassword({email,password});
     if(error)throw error;
-    const {data:profile,error:profileError}=await db.from("profiles")
-      .select("id,username,display_name,bio,avatar_url,banner_url,accent_color")
-      .eq("id",data.user.id).maybeSingle();
-    if(profileError) console.warn("Profile load:",profileError.message);
+    const {data:profile,error:profileError}=await db.rpc("ensure_beyond_profile");
+    if(profileError) throw profileError;
     saveSession(data.user,profile,remember);
     location.replace("index.html");
   }catch(error){
