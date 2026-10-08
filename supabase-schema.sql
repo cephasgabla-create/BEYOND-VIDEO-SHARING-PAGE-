@@ -518,6 +518,11 @@ followed_creators as (
   from follows f
   where f.follower_id = (select id from current_user_id)
 ),
+blocked_accounts as (
+  select blocked_id as user_id from blocked_users where blocker_id = (select id from current_user_id)
+  union
+  select blocker_id as user_id from blocked_users where blocked_id = (select id from current_user_id)
+),
 creator_activity as (
   select v.user_id, count(*)::numeric as recent_posts
   from videos v
@@ -563,6 +568,7 @@ join profiles p on p.id = v.user_id
 left join comment_counts cc on cc.video_id = v.id
 left join creator_activity ca on ca.user_id = v.user_id
 where v.status = 'published'
+  and not exists (select 1 from blocked_accounts b where b.user_id = v.user_id)
 order by recommendation_score desc, v.created_at desc
 limit greatest(1, least(coalesce(p_limit,30),100));
 $$;
@@ -600,6 +606,7 @@ with published as (
   ) f on f.following_id = v.user_id
   where v.status = 'published'
     and coalesce(v.visibility,'public') = 'public'
+    and (auth.uid() is null or not exists (select 1 from public.blocked_users b where (b.blocker_id=auth.uid() and b.blocked_id=v.user_id) or (b.blocker_id=v.user_id and b.blocked_id=auth.uid())))
 ),
 scored as (
   select p.*,
@@ -1034,7 +1041,8 @@ as $$
   select count(*)::bigint
   from public.messages
   where receiver_id = auth.uid()
-    and read = false;
+    and read = false
+    and not exists (select 1 from public.blocked_users b where (b.blocker_id=auth.uid() and b.blocked_id=sender_id) or (b.blocker_id=sender_id and b.blocked_id=auth.uid()));
 $$;
 
 revoke all on function public.get_beyond_unread_message_count() from public;
