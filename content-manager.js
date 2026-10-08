@@ -235,7 +235,7 @@ function getVideoSource(v){
   if(!localObjectUrls.has(key))localObjectUrls.set(key,URL.createObjectURL(v.video));
   return localObjectUrls.get(key);
 }
-async async function toggleStatus(id){
+async function toggleStatus(id){
   const v=findContentItem(id);if(!v)return;
   const status=v.status==="draft"?"published":"draft";
   try{
