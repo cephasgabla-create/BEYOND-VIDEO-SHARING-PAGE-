@@ -105,7 +105,7 @@ jobs:
           function checkHtml(file) {
             const html = fs.readFileSync(file, 'utf8');
             const refs = [];
-            const re = /(?:href|src)\\s*=\\s*["']([^"']+)["']/gi;
+            const re = /(?:href|src)\s*=\s*["']([^"']+)["']/gi;
             let match;
             while ((match = re.exec(html))) refs.push(match[1].trim());
 
@@ -131,6 +131,34 @@ jobs:
             process.exit(1);
           }
           console.log('All local HTML href/src references resolve.');
+          const cssFiles = [];
+          function walkCss(dir) {
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+              if (entry.name === '.git' || entry.name === 'node_modules') continue;
+              const full = path.join(dir, entry.name);
+              if (entry.isDirectory()) walkCss(full);
+              else if (entry.isFile() && full.toLowerCase().endsWith('.css')) cssFiles.push(full);
+            }
+          }
+          walkCss('.');
+          for (const file of cssFiles) {
+            const css = fs.readFileSync(file, 'utf8');
+            const urlRe = /url\(\s*["']?([^"')]+)["']?\s*\)/gi;
+            let match;
+            while ((match = urlRe.exec(css))) {
+              const ref = match[1].trim();
+              if (!ref || ignored.test(ref)) continue;
+              const target = path.normalize(path.join(path.dirname(file), decodeURIComponent(ref.split('#')[0].split('?')[0])));
+              if (!fs.existsSync(target)) {
+                missing.add(`${file} -> ${ref}`);
+              }
+            }
+          }
+          if (missing.size) {
+            for (const item of [...missing].sort()) console.error(`::error::Missing local asset reference: ${item}`);
+            process.exit(1);
+          }
+          console.log('All local CSS url() references resolve.');
           NODE
 
       - name: Prepare static site
