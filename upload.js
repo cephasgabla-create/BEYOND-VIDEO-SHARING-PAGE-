@@ -116,13 +116,24 @@ async function uploadBeyondVideoWithDatabase(file,caption="",hashtags=""){
 
 function openGoLive(){document.getElementById("goLiveModal")?.classList.add("show")}
 function closeGoLive(){document.getElementById("goLiveModal")?.classList.remove("show")}
-function startConfiguredLive(){
+async function startConfiguredLive(){
   const title=document.getElementById("liveTitleInput").value.trim()||"Beyond Live";
   const category=document.getElementById("liveCategory").value;
   const chat=document.getElementById("liveChatEnabled").checked;
-  localStorage.setItem("beyondLiveConfig",JSON.stringify({
-    title,category,chat,startedAt:new Date().toISOString(),active:true
-  }));
+  try{
+    const client=window.beyondDB||initBeyondDatabase();
+    const user=client?await getCurrentBeyondUser():null;
+    if(client&&user){
+      const room=await createLiveRoom(title,category);
+      localStorage.setItem("beyondLiveConfig",JSON.stringify({title,category,chat,startedAt:new Date().toISOString(),active:true,roomId:room.id}));
+    }else{
+      localStorage.setItem("beyondLiveConfig",JSON.stringify({title,category,chat,startedAt:new Date().toISOString(),active:true}));
+    }
+  }catch(error){
+    console.error("Beyond Live room creation failed:",error);
+    alert("Could not create the live room: "+error.message);
+    return;
+  }
   closeGoLive();
   window.location.href="index.html?live=1";
 }
