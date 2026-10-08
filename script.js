@@ -235,9 +235,13 @@ function openLogin(){location.href="login.html"}function openUpload(){location.h
 async function getFollowing(){
  const db=initBeyondDatabase();const user=await getCurrentBeyondUser();
  if(!db||!user)return [];
- const {data,error}=await db.from("follows").select("following_id,profiles!follows_following_id_fkey(username)");
+ const {data:follows,error}=await db.from("follows").select("following_id").eq("follower_id",user.id);
  if(error){console.warn("Following load failed",error);return []}
- return (data||[]).map(x=>x.profiles?.username).filter(Boolean);
+ const ids=(follows||[]).map(x=>x.following_id);
+ if(!ids.length)return [];
+ const {data:profiles,error:profileError}=await db.from("profiles").select("id,username").in("id",ids);
+ if(profileError){console.warn("Following profiles load failed",profileError);return []}
+ return (profiles||[]).map(x=>x.username).filter(Boolean);
 }
 async function toggleFollow(username,button){
  const db=initBeyondDatabase();const user=await getCurrentBeyondUser();
