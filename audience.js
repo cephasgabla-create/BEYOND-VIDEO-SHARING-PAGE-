@@ -222,8 +222,15 @@ window.addEventListener("resize",drawGrowthChart);
 
 function subscribeAudienceRealtime(client,userId){
   if(!client||!userId)return;
-  if(window.beyondAudienceChannel)client.removeChannel(window.beyondAudienceChannel);
-  window.beyondAudienceChannel=client.channel("beyond-audience-"+userId)
-    .on("postgres_changes",{event:"*",schema:"public",table:"follows",filter:"following_id=eq."+userId},()=>initAudience())
-    .subscribe();
+  if(window.beyondAudienceChannel){try{client.removeChannel(window.beyondAudienceChannel)}catch(e){console.warn("Beyond audience realtime cleanup:",e)}window.beyondAudienceChannel=null;}
+  const channel=client.channel("beyond-audience-"+userId)
+    .on("postgres_changes",{event:"*",schema:"public",table:"follows",filter:"following_id=eq."+userId},()=>initAudience());
+  channel.subscribe(status=>{
+    if(status==="SUBSCRIBED"){window.beyondAudienceChannel=channel;return;}
+    if(status==="CHANNEL_ERROR"||status==="TIMED_OUT"||status==="CLOSED"){
+      if(window.beyondAudienceChannel===channel)window.beyondAudienceChannel=null;
+      try{client.removeChannel(channel)}catch(e){console.warn("Beyond audience realtime cleanup:",e)}
+      if(document.visibilityState!=="hidden")setTimeout(()=>subscribeAudienceRealtime(client,userId),5000);
+    }
+  });
 }
