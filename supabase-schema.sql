@@ -1038,27 +1038,144 @@ revoke all on function public.get_beyond_unread_message_count() from public;
 grant execute on function public.get_beyond_unread_message_count() to authenticated;
 
 -- Ensure every authenticated account has a usable Beyond profile.
-create or replace function public.ensure_beyond_profile()
+create or replace function public.ensure_beyond_profile(
+  requested_username text default null,
+  requested_display_name text default null
+)
 returns public.profiles
 language plpgsql
 security definer
 set search_path = public
 as $
-declare p public.profiles;
+declare
+  p public.profiles;
+  desired_username text;
+  desired_display_name text;
 begin
   if auth.uid() is null then
     raise exception 'Authentication required';
   end if;
 
-  insert into public.profiles (id, username, display_name)
-  values (
-    auth.uid(),
-    'user_' || substr(replace(auth.uid()::text,'-',''),1,12),
-    coalesce(split_part(auth.jwt()->>'email','@',1),'Beyond User')
-  )
-  on conflict (id) do nothing;
+  desired_username := nullif(btrim(coalesce(requested_username,'')), '');
+  desired_display_name := nullif(btrim(coalesce(requested_display_name,'')), '');
 
-  select * into p from public.profiles where id = auth.uid();
+  if desired_username is not null then
+    if char_length(desired_username) < 3
+       or char_length(desired_username) > 30
+       or desired_username !~ '^[A-Za-z0-9._-]+
+
+revoke all on function public.ensure_beyond_profile() from public;
+grant execute on function public.ensure_beyond_profile() to authenticated;
+
+-- Keep profile ownership locked to the authenticated user.
+drop policy if exists "users update their profile" on public.profiles;
+do $ begin
+  create policy "users update their profile" on public.profiles
+    for update to authenticated
+    using (id = auth.uid())
+    with check (id = auth.uid());
+exception when duplicate_object then null; end $;
+
+drop policy if exists "users insert their profile" on public.profiles;
+do $ begin
+  create policy "users insert their profile" on public.profiles
+    for insert to authenticated
+    with check (id = auth.uid());
+exception when duplicate_object then null; end $;
+
+-- Secure direct-message read state with RPCs.
+-- Clients may insert messages only as themselves and read only conversations they belong to.
+-- Direct UPDATE is intentionally disabled so clients cannot edit message content,
+-- sender, receiver, or timestamps while marking a message as read.
+drop policy if exists "receivers can mark messages read" on public.messages;
+
+create or replace function public.mark_beyond_message_read(message_id bigint)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $
+declare changed boolean;
+begin
+  update public.messages
+    set read = true
+    where id = mark_beyond_message_read.message_id
+      and receiver_id = auth.uid()
+      and read = false;
+  changed := found;
+  return changed;
+end;
+$;
+
+create or replace function public.mark_beyond_conversation_read(other_user_id uuid)
+returns bigint
+language plpgsql
+security definer
+set search_path = public
+as $
+declare changed_count bigint;
+begin
+  update public.messages
+    set read = true
+    where receiver_id = auth.uid()
+      and sender_id = mark_beyond_conversation_read.other_user_id
+      and read = false;
+  get diagnostics changed_count = row_count;
+  return changed_count;
+end;
+$;
+
+revoke all on function public.mark_beyond_message_read(bigint) from public;
+revoke all on function public.mark_beyond_conversation_read(uuid) from public;
+grant execute on function public.mark_beyond_message_read(bigint) to authenticated;
+grant execute on function public.mark_beyond_conversation_read(uuid) to authenticated;
+
+-- Keep message content bounded and non-empty.
+do $ begin
+  alter table public.messages
+    add constraint messages_content_length_check
+    check (char_length(btrim(content)) between 1 and 2000);
+exception when duplicate_object then null; end $;
+ then
+      raise exception 'Invalid username';
+    end if;
+
+    if exists (
+      select 1 from public.profiles
+      where lower(username) = lower(desired_username)
+        and id <> auth.uid()
+    ) then
+      raise exception 'That username is already taken.';
+    end if;
+  end if;
+
+  select * into p
+  from public.profiles
+  where id = auth.uid();
+
+  if not found then
+    insert into public.profiles (id, username, display_name)
+    values (
+      auth.uid(),
+      coalesce(
+        desired_username,
+        'user_' || substr(replace(auth.uid()::text,'-',''),1,12)
+      ),
+      coalesce(
+        desired_display_name,
+        split_part(auth.jwt()->>'email','@',1),
+        'Beyond User'
+      )
+    )
+    returning * into p;
+  elsif desired_username is not null then
+    update public.profiles
+      set username = desired_username,
+          display_name = coalesce(desired_display_name, display_name)
+      where id = auth.uid()
+      returning * into p;
+  end if;
+
   return p;
 end;
 $;
