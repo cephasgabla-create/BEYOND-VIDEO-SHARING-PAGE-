@@ -50,7 +50,7 @@ async function loadContent(){
         contentItems=(videos||[]).map(v=>({
           id:v.id,caption:v.caption||"",hashtags:v.hashtags||"",status:v.status||"published",
           views:Number(v.views_count||0),likeCount:likeMap[v.id]||Number(v.likes_count||0),
-          commentCount:commentMap[v.id]||0,createdAt:v.created_at,videoUrl:v.video_url
+          commentCount:commentMap[v.id]||0,createdAt:v.created_at,videoUrl:v.video_url,visibility:v.visibility||"public",commentsEnabled:v.comments_enabled!==false
         }));
         updateStats();
         render();
@@ -78,7 +78,7 @@ async function loadLocalContent(){
       v.likeCount=likes.filter(l=>l.postId===v.id).length;
       v.commentCount=comments.filter(c=>c.postId===v.id).length;
       v.views=Number(localStorage.getItem("beyondViews_"+v.id)||0);
-      v.status=v.status||"published";
+      v.status=v.status||"published";v.visibility=v.visibility||"public";v.commentsEnabled=v.commentsEnabled!==false;
     });
     updateStats(); render();
   }catch(e){console.error(e)}
@@ -138,8 +138,9 @@ function render(){
     const meta=document.createElement("div");meta.className="meta";meta.textContent="👁 "+v.views+"   ❤️ "+v.likeCount+"   💬 "+v.commentCount+"   • "+new Date(v.createdAt).toLocaleDateString();
     info.append(h,p,meta);
     const actions=document.createElement("div");actions.className="actions";actions.innerHTML='<button class="preview-btn">Preview</button><button>Edit</button><button></button><button class="delete">Delete</button>';
-    actions.children[1].textContent=v.status==="draft"?"Publish":"Hide";
-    actions.children[0].onclick=()=>openEditor(v.id);actions.children[1].onclick=()=>toggleStatus(v.id);actions.children[2].onclick=()=>deleteVideo(v.id);
+    actions.children[1].textContent="Edit";
+    actions.children[2].textContent=v.status==="draft"?"Publish":"Hide";
+    actions.children[0].onclick=()=>openPreview(v.id);actions.children[1].onclick=()=>openEditor(v.id);actions.children[2].onclick=()=>toggleStatus(v.id);actions.children[3].onclick=()=>deleteVideo(v.id);
     row.append(check,thumb,info,actions);list.append(row);
   });
   document.getElementById("pageInfo").textContent="Page "+currentPage+" of "+pages+" · "+items.length+" videos";
@@ -197,3 +198,35 @@ function setupRealtime(db,userId){
     .on("postgres_changes",{event:"*",schema:"public",table:"comments"},()=>loadContent())
     .subscribe();
 }}
+function findContentItem(id){return contentItems.find(v=>String(v.id)===String(id))}
+function openEditor(id){
+  const v=findContentItem(id);if(!v)return;
+  currentEditId=id;
+  document.getElementById("editCaption").value=v.caption||"";
+  document.getElementById("editHashtags").value=v.hashtags||"";
+  document.getElementById("editVisibility").value=v.visibility||"public";
+  document.getElementById("editCommentsEnabled").checked=v.commentsEnabled!==false;
+  document.getElementById("editStatus").value=v.status||"published";
+  const video=document.getElementById("editVideoPreview");video.src=v.videoUrl||"";video.load();
+  updateCaptionCount();document.getElementById("editModal").classList.add("show");
+}
+function closeEditor(){
+  document.getElementById("editModal").classList.remove("show");
+  const video=document.getElementById("editVideoPreview");video.pause();video.removeAttribute("src");video.load();currentEditId=null;
+}
+function updateCaptionCount(){const el=document.getElementById("editCaption"),count=document.getElementById("captionCount");if(el&&count)count.textContent=el.value.length+" / 150"}
+async function saveEditor(forcedStatus){
+  const v=findContentItem(currentEditId);if(!v)return;
+  const caption=document.getElementById("editCaption").value.trim(),hashtags=document.getElementById("editHashtags").value.trim(),visibility=document.getElementById("editVisibility").value,commentsEnabled=document.getElementById("editCommentsEnabled").checked,status=forcedStatus||document.getElementById("editStatus").value;
+  try{
+    if(usingSupabase){
+      const db=getSupabase();const {error}=await db.from("videos").update({caption,hashtags,visibility,comments_enabled:commentsEnabled,status}).eq("id",currentEditId);if(error)throw error;
+    }else{
+      Object.assign(v,{caption,hashtags,visibility,commentsEnabled,status});
+      const db=await openDB();await new Promise((resolve,reject)=>{const tx=db.transaction("videos","readwrite");tx.objectStore("videos").put(v);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});
+    }
+    closeEditor();await loadContent();
+  }catch(e){alert("Could not save video: "+e.message)}
+}
+document.getElementById("editCaption")?.addEventListener("input",updateCaptionCount);
+document.getElementById("editModal")?.addEventListener("click",e=>{if(e.target.id==="editModal")closeEditor()});
