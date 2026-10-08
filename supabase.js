@@ -265,7 +265,7 @@ async function getBeyondConversations(){
   const user=await getCurrentBeyondUser();
   if(!db||!user) throw new Error("Please sign in first.");
   const {data,error}=await db.from("messages")
-    .select("id,sender_id,receiver_id,content,created_at,read")
+    .select("id,sender_id,receiver_id,content,created_at,read,deleted_for_sender,deleted_for_receiver")
     .or("sender_id.eq."+user.id+",receiver_id.eq."+user.id)
     .order("created_at",{ascending:false})
     .limit(500);
@@ -304,6 +304,10 @@ async function getBeyondConversation(otherUserId,limit=100){
   if(error) throw error;
   return data||[];
 }
+
+async function deleteBeyondMessageForMe(messageId){const db=beyondDB||initBeyondDatabase();const user=await getCurrentBeyondUser();if(!db||!user)throw new Error("Please sign in first.");const {data,error}=await db.rpc("delete_beyond_message_for_me",{message_id:messageId});if(error)throw error;return Boolean(data)}
+async function deleteBeyondMessageForEveryone(messageId){const db=beyondDB||initBeyondDatabase();const user=await getCurrentBeyondUser();if(!db||!user)throw new Error("Please sign in first.");const {data,error}=await db.rpc("delete_beyond_message_for_everyone",{message_id:messageId});if(error)throw error;return Boolean(data)}
+async function deleteBeyondConversationForMe(otherUserId){const db=beyondDB||initBeyondDatabase();const user=await getCurrentBeyondUser();if(!db||!user)throw new Error("Please sign in first.");const {data,error}=await db.rpc("delete_beyond_conversation_for_me",{other_user_id:otherUserId});if(error)throw error;return Number(data||0)}
 
 async function getBeyondUnreadMessageCount(){
   const db=beyondDB||initBeyondDatabase();
