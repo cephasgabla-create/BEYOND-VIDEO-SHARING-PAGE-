@@ -6,12 +6,26 @@ let videos=[];let likes=[];let comments=[];const CUSTOM_KEY="beyondDashboardCust
    if(user){
     const {data:rows,error}=await client.from("videos").select("*").eq("user_id",user.id).order("created_at",{ascending:false});
     if(error)throw error;
+    const videoIds=(rows||[]).map(v=>v.id);
     let likeRows=[],commentRows=[];
-    const [lr,cr]=await Promise.all([client.from("likes").select("video_id"),client.from("comments").select("video_id")]);
-    if(!lr.error)likeRows=lr.data||[];
-    if(!cr.error)commentRows=cr.data||[];
-    videos=(rows||[]).map(v=>({...v,id:v.id,caption:v.caption||"",createdAt:v.created_at,views:Number(v.views_count||0),likes:likeRows.filter(x=>x.video_id===v.id).length||Number(v.likes_count||0),comments:commentRows.filter(x=>x.video_id===v.id).length||Number(v.comments_count||0),status:v.status||"published"}));
-    likes=[];comments=[];render();return;
+    if(videoIds.length){
+      const [lr,cr]=await Promise.all([
+        client.from("likes").select("video_id").in("video_id",videoIds),
+        client.from("comments").select("video_id").in("video_id",videoIds)
+      ]);
+      if(lr.error)throw lr.error;
+      if(cr.error)throw cr.error;
+      likeRows=lr.data||[];
+      commentRows=cr.data||[];
+    }
+    videos=(rows||[]).map(v=>({...v,id:v.id,caption:v.caption||"",createdAt:v.created_at,views:Number(v.views_count||0),likes:likeRows.filter(x=>x.video_id===v.id).length,comments:commentRows.filter(x=>x.video_id===v.id).length,status:v.status||"published"}));
+    likes=[];comments=[];
+    const followResult=await client.from("follows").select("follower_id",{count:"exact",head:true}).eq("following_id",user.id);
+    if(followResult.error)throw followResult.error;
+    window.beyondCreatorFollowerCount=followResult.count||0;
+    render();
+    subscribeCreatorRealtime(client,user.id,videoIds);
+    return;
    }
   }
   const d=await db(),u=localStorage.getItem("beyondUsername");
@@ -21,7 +35,26 @@ let videos=[];let likes=[];let comments=[];const CUSTOM_KEY="beyondDashboardCust
   render();
  }catch(e){console.error("Beyond Creator Studio:",e);render()}
 }
-function getCustomization(){const base={...CUSTOM_DEFAULTS,tools:{...CUSTOM_DEFAULTS.tools}};try{const saved=JSON.parse(localStorage.getItem(CUSTOM_KEY)||"null");return saved?{...base,...saved,tools:{...base.tools,...(saved.tools||{})}}:base}catch{return base}}function applyCustomization(){const c=getCustomization();document.body.dataset.dashboardDensity=c.density==="compact"?"compact":"comfortable";document.querySelector(".tools").style.gridTemplateColumns=c.columns==="1"?"1fr":"";document.querySelectorAll("[data-studio-tool]").forEach(el=>{const k=el.dataset.studioTool;el.style.display=k==="customization"||c.tools[k]!==false?"flex":"none"});document.getElementById("recentPanel").style.display=c.recent?"block":"none";document.getElementById("insightsPanel").style.display=c.insights?"block":"none";const grid=document.querySelector("main");grid.classList.toggle("dashboard-single-column",c.columns==="1");if(c.latest){const recent=document.getElementById("recent");recent.dataset.order="latest"}}function fmt(v){v=Number(v)||0;return v>=1e6?(v/1e6).toFixed(1)+"M":v>=1e3?(v/1e3).toFixed(1)+"K":String(Math.round(v))}function render(){const tv=videos.reduce((a,v)=>a+v.views,0),tl=videos.reduce((a,v)=>a+v.likes,0),tc=videos.reduce((a,v)=>a+v.comments,0);document.getElementById("creatorName").textContent=localStorage.getItem("beyondUsername")||"Creator";document.getElementById("videos").textContent=fmt(videos.length);document.getElementById("views").textContent=fmt(tv);document.getElementById("likes").textContent=fmt(tl);document.getElementById("comments").textContent=fmt(tc);document.getElementById("avgViews").textContent=fmt(videos.length?tv/videos.length:0);document.getElementById("engagement").textContent=(tv?((tl+tc)/tv*100).toFixed(1):"0")+"%";const followerMap=(()=>{try{return JSON.parse(localStorage.getItem("beyondFollowers")||"{}")}catch{return {}}})();
-  const creatorUser=localStorage.getItem("beyondUsername")||"";
-  const followerCount=Array.isArray(followerMap[creatorUser])?followerMap[creatorUser].length:0;
+function getCustomization(){const base={...CUSTOM_DEFAULTS,tools:{...CUSTOM_DEFAULTS.tools}};try{const saved=JSON.parse(localStorage.getItem(CUSTOM_KEY)||"null");return saved?{...base,...saved,tools:{...base.tools,...(saved.tools||{})}}:base}catch{return base}}function applyCustomization(){const c=getCustomization();document.body.dataset.dashboardDensity=c.density==="compact"?"compact":"comfortable";document.querySelector(".tools").style.gridTemplateColumns=c.columns==="1"?"1fr":"";document.querySelectorAll("[data-studio-tool]").forEach(el=>{const k=el.dataset.studioTool;el.style.display=k==="customization"||c.tools[k]!==false?"flex":"none"});document.getElementById("recentPanel").style.display=c.recent?"block":"none";document.getElementById("insightsPanel").style.display=c.insights?"block":"none";const grid=document.querySelector("main");grid.classList.toggle("dashboard-single-column",c.columns==="1");if(c.latest){const recent=document.getElementById("recent");recent.dataset.order="latest"}}function fmt(v){v=Number(v)||0;return v>=1e6?(v/1e6).toFixed(1)+"M":v>=1e3?(v/1e3).toFixed(1)+"K":String(Math.round(v))}function render(){const tv=videos.reduce((a,v)=>a+v.views,0),tl=videos.reduce((a,v)=>a+v.likes,0),tc=videos.reduce((a,v)=>a+v.comments,0);document.getElementById("creatorName").textContent=localStorage.getItem("beyondUsername")||"Creator";document.getElementById("videos").textContent=fmt(videos.length);document.getElementById("views").textContent=fmt(tv);document.getElementById("likes").textContent=fmt(tl);document.getElementById("comments").textContent=fmt(tc);document.getElementById("avgViews").textContent=fmt(videos.length?tv/videos.length:0);document.getElementById("engagement").textContent=(tv?((tl+tc)/tv*100).toFixed(1):"0")+"%";const creatorUser=localStorage.getItem("beyondUsername")||"";
+  const followerMap=(()=>{try{return JSON.parse(localStorage.getItem("beyondFollowers")||"{}")}catch{return {}}})();
+  const localFollowerCount=Array.isArray(followerMap[creatorUser])?followerMap[creatorUser].length:0;
+  const followerCount=Number.isFinite(window.beyondCreatorFollowerCount)?window.beyondCreatorFollowerCount:localFollowerCount;
   document.getElementById("followers").textContent=fmt(followerCount);document.getElementById("published").textContent=videos.filter(v=>(v.status||"published")==="published").length;const recent=[...videos].sort((a,b)=>new Date(b.createdAt||0)-new Date(a.createdAt||0)).slice(0,5);document.getElementById("recent").innerHTML=recent.length?recent.map(v=>'<div class="video"><div><h3>'+esc(v.caption||"Untitled video")+'</h3><p>❤️ '+fmt(v.likes)+' · 💬 '+fmt(v.comments)+'</p></div><strong>👁 '+fmt(v.views)+'</strong></div>').join(""):'<p style="color:#9299a6;font-size:12px">No videos yet. Upload your first Beyond video.</p>';applyCustomization()}function esc(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]))}
+
+function subscribeCreatorRealtime(client,userId,videoIds){
+  if(!client||!userId)return;
+  if(window.beyondCreatorRealtimeChannel)client.removeChannel(window.beyondCreatorRealtimeChannel);
+  const channel=client.channel("beyond-creator-studio-"+userId)
+    .on("postgres_changes",{event:"*",schema:"public",table:"videos",filter:"user_id=eq."+userId},()=>load())
+    .on("postgres_changes",{event:"*",schema:"public",table:"follows",filter:"following_id=eq."+userId},()=>load())
+    .on("postgres_changes",{event:"*",schema:"public",table:"likes"},payload=>{
+      const id=payload.new?.video_id||payload.old?.video_id;
+      if(videoIds.includes(id))load();
+    })
+    .on("postgres_changes",{event:"*",schema:"public",table:"comments"},payload=>{
+      const id=payload.new?.video_id||payload.old?.video_id;
+      if(videoIds.includes(id))load();
+    })
+    .subscribe();
+  window.beyondCreatorRealtimeChannel=channel;
+}
