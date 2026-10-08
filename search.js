@@ -1,75 +1,62 @@
 const input=document.getElementById("searchInput");
 const results=document.getElementById("results");
 const status=document.getElementById("searchStatus");
-let objectUrls=[];
 
-if(input){
-  input.addEventListener("keydown",e=>{if(e.key==="Enter")performSearch()});
-}
+input?.addEventListener("keydown",e=>{if(e.key==="Enter")performSearch()});
 
-function configuredSupabase(){
-  try{return window.beyondDB||(typeof initBeyondDatabase==="function"?initBeyondDatabase():null)}catch{return null}
-}
+function db(){return window.beyondDB||initBeyondDatabase()}
 
 async function performSearch(){
-  const q=input?.value.trim().toLowerCase()||"";
-  if(!q){status.textContent="Type something to search.";clearResults();return}
-  clearResults();status.textContent="Searching Beyond…";
-  try{
-    const db=configuredSupabase();
-    if(db){
-      const [{data:videos,error:videoError},{data:profiles,error:profileError}]=await Promise.all([
-        db.from("videos").select("id,user_id,video_url,caption,hashtags,created_at,status").eq("status","published").or("caption.ilike.%"+escapeFilter(q)+"%,hashtags.ilike.%"+escapeFilter(q)+"%").order("created_at",{ascending:false}).limit(100),
-        db.from("profiles").select("id,username,display_name,avatar_url").ilike("username","%"+q+"%").limit(50)
-      ]);
-      if(videoError)throw videoError;
-      if(profileError)throw profileError;
-      const profileMap=new Map((profiles||[]).map(p=>[p.id,p]));
-      let matches=(videos||[]).map(v=>({...v,username:profileMap.get(v.user_id)?.username||"Beyond creator",display_name:profileMap.get(v.user_id)?.display_name||""}));
-      const creatorIds=(profiles||[]).map(p=>p.id);
-      if(creatorIds.length){
-        const {data:creatorVideos,error:creatorError}=await db.from("videos").select("id,user_id,video_url,caption,hashtags,created_at,status").eq("status","published").in("user_id",creatorIds).order("created_at",{ascending:false}).limit(100);
-        if(creatorError)throw creatorError;
-        const byId=new Map(matches.map(v=>[String(v.id),v]));
-        (creatorVideos||[]).forEach(v=>{if(!byId.has(String(v.id)))matches.push({...v,...profileMap.get(v.user_id),username:profileMap.get(v.user_id)?.username||"Beyond creator"})});
-      }
-      matches.sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
-      renderResults(matches.slice(0,100));
-      return;
-    }
-    const local=await loadLocalVideos();
-    renderResults(local.filter(p=>(p.username||"").toLowerCase().includes(q)||(p.caption||"").toLowerCase().includes(q)||(p.hashtags||"").toLowerCase().includes(q)).reverse());
-  }catch(error){
-    console.error("Beyond search error:",error);
-    status.textContent="Search is temporarily unavailable."; 
-  }
+ const q=input?.value.trim()||"";
+ if(!q){status.textContent="Type something to search.";results.innerHTML="";return}
+ status.textContent="Searching Beyond…";results.innerHTML="";
+ const client=db();
+ if(!client){status.textContent="Supabase is not configured yet.";return}
+ try{
+  const term=q.replace(/[,%()]/g," ").trim();
+  const [{data:profiles,error:pe},{data:videos,error:ve}]=await Promise.all([
+   client.from("profiles").select("id,username,display_name,avatar_url,bio").or("username.ilike.%"+term+"%,display_name.ilike.%"+term+"%").limit(50),
+   client.from("videos").select("id,user_id,video_url,caption,hashtags,created_at,profiles(username,display_name,avatar_url)").eq("status","published").or("caption.ilike.%"+term+"%,hashtags.ilike.%"+term+"%").order("created_at",{ascending:false}).limit(100)
+  ]);
+  if(pe)throw pe;if(ve)throw ve;
+  renderResults(profiles||[],videos||[],q);
+ }catch(error){console.error(error);status.textContent="Search is temporarily unavailable."}
 }
 
-function escapeFilter(value){return value.replace(/[,%()]/g," ").trim()}
-function clearResults(){objectUrls.forEach(url=>URL.revokeObjectURL(url));objectUrls=[];if(results)results.innerHTML=""}
-
-function renderResults(matches){
-  results.innerHTML="";
-  status.textContent=matches.length?matches.length+" result"+(matches.length===1?"":"s")+" found":"No results found.";
-  matches.forEach(p=>{
-    const card=document.createElement("article");card.className="result-card";
-    const video=document.createElement("video");video.className="result-video";video.muted=true;video.loop=true;video.controls=true;video.playsInline=true;
-    if(p.video instanceof Blob){const url=URL.createObjectURL(p.video);objectUrls.push(url);video.src=url}else if(p.video_url)video.src=p.video_url;else if(p.videoUrl)video.src=p.videoUrl;
-    const info=document.createElement("div");info.className="result-info";
-    const user=document.createElement("h3");user.textContent="@"+(p.username||"Beyond creator");
-    const caption=document.createElement("p");caption.textContent=p.caption||"";
-    const tags=document.createElement("p");tags.className="hashtags";tags.textContent=p.hashtags||"";
-    info.append(user,caption,tags);card.append(video,info);results.appendChild(card);
-  });
+function renderResults(profiles,videos,q){
+ results.innerHTML="";
+ const heading=document.createElement("h3");heading.textContent="Creators";results.appendChild(heading);
+ if(!profiles.length){const p=document.createElement("p");p.textContent="No creators found.";results.appendChild(p)}
+ profiles.forEach(profile=>{
+  const card=document.createElement("article");card.className="result-card";
+  const name=document.createElement("h3");name.textContent="@"+(profile.username||"Beyond creator");
+  const bio=document.createElement("p");bio.textContent=profile.bio||profile.display_name||"";
+  const follow=document.createElement("button");follow.textContent="Follow";follow.className="follow-button";
+  follow.onclick=async()=>{try{const user=await getCurrentBeyondUser();if(!user){location.href="login.html";return}const following=await getBeyondFollowState(profile.id);await setBeyondFollow(profile.id,!following);await updateSearchFollowButton(follow,profile.id)}catch(e){alert(e.message||"Could not update follow.")}};
+  updateSearchFollowButton(follow,profile.id);
+  card.append(name,bio,follow);results.appendChild(card);
+ });
+ const vh=document.createElement("h3");vh.textContent="Videos";results.appendChild(vh);
+ if(!videos.length){const p=document.createElement("p");p.textContent="No videos found.";results.appendChild(p)}
+ videos.forEach(video=>{
+  const card=document.createElement("article");card.className="result-card";
+  const media=document.createElement("video");media.className="result-video";media.src=video.video_url;media.controls=true;media.playsInline=true;media.muted=true;
+  const info=document.createElement("div");info.className="result-info";
+  const creator=video.profiles?.username||"Beyond creator";
+  const name=document.createElement("h3");name.textContent="@"+creator;
+  const caption=document.createElement("p");caption.textContent=video.caption||"";
+  const tags=document.createElement("p");tags.className="hashtags";tags.textContent=video.hashtags||"";
+  info.append(name,caption,tags);card.append(media,info);results.appendChild(card);
+ });
+ status.textContent=(profiles.length+videos.length)+" result"+((profiles.length+videos.length)===1?"":"s")+" found";
 }
 
-function loadLocalVideos(){
-  return new Promise((resolve,reject)=>{
-    const r=indexedDB.open("BeyondDatabase",4);
-    r.onupgradeneeded=e=>{const db=e.target.result;if(!db.objectStoreNames.contains("videos"))db.createObjectStore("videos",{keyPath:"id",autoIncrement:true});if(!db.objectStoreNames.contains("comments"))db.createObjectStore("comments",{keyPath:"id",autoIncrement:true});if(!db.objectStoreNames.contains("likes"))db.createObjectStore("likes",{keyPath:"key"})};
-    r.onsuccess=()=>{const db=r.result;const req=db.transaction("videos","readonly").objectStore("videos").getAll();req.onsuccess=()=>resolve(req.result||[]);req.onerror=()=>reject(req.error)};
-    r.onerror=()=>reject(r.error);
-  });
+async function updateSearchFollowButton(button,targetId){
+ try{
+  const user=await getCurrentBeyondUser();
+  if(!user){button.textContent="Follow";return}
+  button.textContent=await getBeyondFollowState(targetId)?"Following":"Follow";
+ }catch{button.textContent="Follow"}
 }
 
 function goHome(){location.href="index.html"}
