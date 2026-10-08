@@ -130,3 +130,12 @@ async function updateBeyondOwnProfile(fields){
   if(error) throw error;
   return data;
 }
+
+
+async function updateLiveViewerCount(roomId,delta){
+  const db=beyondDB||initBeyondDatabase();
+  if(!db||!roomId)return null;
+  const {data,error}=await db.rpc("change_live_viewer_count",{room_id:roomId,delta});
+  if(error)throw error;
+  return data;
+}
