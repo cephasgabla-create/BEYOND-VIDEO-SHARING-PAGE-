@@ -224,3 +224,6 @@ exception when duplicate_object then null; end $$;
 do $$ begin
   alter publication supabase_realtime add table messages;
 exception when duplicate_object then null; end $$;
+
+create index if not exists follows_following_idx on follows(following_id, created_at desc);
+create index if not exists follows_follower_idx on follows(follower_id, created_at desc);
