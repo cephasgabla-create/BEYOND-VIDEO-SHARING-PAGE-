@@ -10,7 +10,7 @@ function getClient(){
 
 async function load(){
   let data={...defaults};
-  try{data={...data,...JSON.parse(localStorage.getItem(KEY)||"{}")}catch(error){console.warn("Invalid saved branding data:",error)}
+  try{data={...data,...JSON.parse(localStorage.getItem(KEY)||"{}")}}catch(error){console.warn("Invalid saved branding data:",error)}
   dbClient=getClient();
   try{
     if(dbClient){
