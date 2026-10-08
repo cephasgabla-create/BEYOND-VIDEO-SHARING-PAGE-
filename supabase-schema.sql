@@ -1,4 +1,5 @@
 -- Beyond database schema for Supabase/PostgreSQL
+
 create table if not exists profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   username text unique not null,
@@ -13,6 +14,9 @@ create table if not exists videos (
   user_id uuid references auth.users(id) on delete cascade,
   video_url text not null,
   caption text default '',
+  hashtags text default '',
+  status text default 'published' check (status in ('published','draft')),
+  views_count bigint default 0,
   likes_count integer default 0,
   created_at timestamptz default now()
 );
@@ -82,33 +86,23 @@ create table if not exists live_reactions (
   created_at timestamptz default now()
 );
 
+-- Safe migrations for an existing Beyond Supabase project
+alter table videos add column if not exists hashtags text default '';
+alter table videos add column if not exists status text default 'published';
+alter table videos add column if not exists views_count bigint default 0;
+alter table videos add column if not exists likes_count integer default 0;
+
 create index if not exists messages_receiver_idx on messages(receiver_id, created_at desc);
 create index if not exists live_messages_room_idx on live_messages(room_id, created_at);
-create index if not exists live_rooms_active_idx on live_rooms(active, created_at desc);
+create index if not exists live_rooms_active_idx on live_rooms(active, started_at desc);
+create index if not exists videos_user_idx on videos(user_id, created_at desc);
+create index if not exists comments_video_idx on comments(video_id, created_at);
+create index if not exists likes_video_idx on likes(video_id, created_at);
 
-
--- Run once in Supabase SQL Editor:
 insert into storage.buckets (id, name, public)
 values ('videos', 'videos', true)
 on conflict (id) do nothing;
 
-create policy "Beyond users can upload videos"
-on storage.objects for insert
-to authenticated
-with check (bucket_id = 'videos' and (storage.foldername(name))[1] = auth.uid()::text);
-
-create policy "Beyond videos are publicly readable"
-on storage.objects for select
-to public
-using (bucket_id = 'videos');
-
-create policy "Beyond users can delete their videos"
-on storage.objects for delete
-to authenticated
-using (bucket_id = 'videos' and (storage.foldername(name))[1] = auth.uid()::text);
-
-
--- Beyond production security: enable RLS on user data
 alter table profiles enable row level security;
 alter table videos enable row level security;
 alter table posts enable row level security;
@@ -120,53 +114,111 @@ alter table live_rooms enable row level security;
 alter table live_messages enable row level security;
 alter table live_reactions enable row level security;
 
-create policy "profiles are publicly readable" on profiles for select using (true);
-create policy "users create their profile" on profiles for insert to authenticated with check (id = auth.uid());
-create policy "users update their profile" on profiles for update to authenticated using (id = auth.uid()) with check (id = auth.uid());
+-- Policies are created only when absent so this script can be re-run safely.
+do $$ begin
+  create policy "profiles are publicly readable" on profiles for select using (true);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  create policy "users create their profile" on profiles for insert to authenticated with check (id = auth.uid());
+exception when duplicate_object then null; end $$;
+do $$ begin
+  create policy "users update their profile" on profiles for update to authenticated using (id = auth.uid()) with check (id = auth.uid());
+exception when duplicate_object then null; end $$;
 
-create policy "published videos are readable" on videos for select using (true);
-create policy "users create their videos" on videos for insert to authenticated with check (user_id = auth.uid());
-create policy "users update their videos" on videos for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
-create policy "users delete their videos" on videos for delete to authenticated using (user_id = auth.uid());
+do $$ begin
+  create policy "videos are readable" on videos for select using (true);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  create policy "users create their videos" on videos for insert to authenticated with check (user_id = auth.uid());
+exception when duplicate_object then null; end $$;
+do $$ begin
+  create policy "users update their videos" on videos for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+exception when duplicate_object then null; end $$;
+do $$ begin
+  create policy "users delete their videos" on videos for delete to authenticated using (user_id = auth.uid());
+exception when duplicate_object then null; end $$;
 
-create policy "posts are readable" on posts for select using (true);
-create policy "users create posts" on posts for insert to authenticated with check (user_id = auth.uid());
-create policy "users delete own posts" on posts for delete to authenticated using (user_id = auth.uid());
+do $$ begin
+  create policy "comments are readable" on comments for select using (true);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  create policy "users create comments" on comments for insert to authenticated with check (user_id = auth.uid());
+exception when duplicate_object then null; end $$;
+do $$ begin
+  create policy "users delete own comments" on comments for delete to authenticated using (user_id = auth.uid());
+exception when duplicate_object then null; end $$;
 
-create policy "comments are readable" on comments for select using (true);
-create policy "users create comments" on comments for insert to authenticated with check (user_id = auth.uid());
-create policy "users delete own comments" on comments for delete to authenticated using (user_id = auth.uid());
+do $$ begin
+  create policy "likes are readable" on likes for select using (true);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  create policy "users like" on likes for insert to authenticated with check (user_id = auth.uid());
+exception when duplicate_object then null; end $$;
+do $$ begin
+  create policy "users unlike" on likes for delete to authenticated using (user_id = auth.uid());
+exception when duplicate_object then null; end $$;
 
-create policy "follows are readable" on follows for select using (true);
-create policy "users follow" on follows for insert to authenticated with check (follower_id = auth.uid());
-create policy "users unfollow" on follows for delete to authenticated using (follower_id = auth.uid());
+do $$ begin
+  create policy "follows are readable" on follows for select using (true);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  create policy "users follow" on follows for insert to authenticated with check (follower_id = auth.uid());
+exception when duplicate_object then null; end $$;
+do $$ begin
+  create policy "users unfollow" on follows for delete to authenticated using (follower_id = auth.uid());
+exception when duplicate_object then null; end $$;
 
-create policy "likes are readable" on likes for select using (true);
-create policy "users like" on likes for insert to authenticated with check (user_id = auth.uid());
-create policy "users unlike" on likes for delete to authenticated using (user_id = auth.uid());
+do $$ begin
+  create policy "live rooms are readable" on live_rooms for select using (true);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  create policy "users create live rooms" on live_rooms for insert to authenticated with check (host_id = auth.uid());
+exception when duplicate_object then null; end $$;
+do $$ begin
+  create policy "hosts update live rooms" on live_rooms for update to authenticated using (host_id = auth.uid()) with check (host_id = auth.uid());
+exception when duplicate_object then null; end $$;
 
-create policy "users read their messages" on messages for select to authenticated using (sender_id = auth.uid() or receiver_id = auth.uid());
-create policy "users send messages" on messages for insert to authenticated with check (sender_id = auth.uid());
-create policy "users update received messages" on messages for update to authenticated using (receiver_id = auth.uid());
+do $$ begin
+  create policy "live messages are readable" on live_messages for select using (true);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  create policy "authenticated users send live messages" on live_messages for insert to authenticated with check (user_id = auth.uid());
+exception when duplicate_object then null; end $$;
 
-create policy "live rooms are readable" on live_rooms for select using (true);
-create policy "users create live rooms" on live_rooms for insert to authenticated with check (host_id = auth.uid());
-create policy "hosts update live rooms" on live_rooms for update to authenticated using (host_id = auth.uid()) with check (host_id = auth.uid());
+do $$ begin
+  create policy "live reactions are readable" on live_reactions for select using (true);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  create policy "authenticated users send live reactions" on live_reactions for insert to authenticated with check (user_id = auth.uid());
+exception when duplicate_object then null; end $$;
 
-create policy "live messages are readable" on live_messages for select using (true);
-create policy "authenticated users send live messages" on live_messages for insert to authenticated with check (user_id = auth.uid());
-
-create policy "live reactions are readable" on live_reactions for select using (true);
-create policy "authenticated users send live reactions" on live_reactions for insert to authenticated with check (user_id = auth.uid());
+do $$ begin
+  create policy "Beyond users can upload videos" on storage.objects for insert to authenticated
+  with check (bucket_id = 'videos' and (storage.foldername(name))[1] = auth.uid()::text);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  create policy "Beyond videos are publicly readable" on storage.objects for select to public
+  using (bucket_id = 'videos');
+exception when duplicate_object then null; end $$;
+do $$ begin
+  create policy "Beyond users can delete their videos" on storage.objects for delete to authenticated
+  using (bucket_id = 'videos' and (storage.foldername(name))[1] = auth.uid()::text);
+exception when duplicate_object then null; end $$;
 
 alter table videos replica identity full;
 alter table likes replica identity full;
 alter table comments replica identity full;
 alter table messages replica identity full;
 
--- Enable realtime for the main social tables. If a table is already in the
--- publication, Supabase may report that it is already present.
-alter publication supabase_realtime add table videos;
-alter publication supabase_realtime add table likes;
-alter publication supabase_realtime add table comments;
-alter publication supabase_realtime add table messages;
+do $$ begin
+  alter publication supabase_realtime add table videos;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table likes;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table comments;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table messages;
+exception when duplicate_object then null; end $$;
