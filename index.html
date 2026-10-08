@@ -33,12 +33,12 @@
       <button onclick="showFollowing()">Following</button>
     </div>
     <div class="top-actions">
-      <button class="search-btn" onclick="openSearch()">🔍</button><button class="notification-nav" onclick="location.href='notifications.html'" title="Notifications" aria-label="Notifications">🔔<span id="beyondNotificationBadge" class="notification-badge" hidden>0</span></button><button onclick="openMessages()" title="Messages">💬</button><button onclick="toggleTheme()" title="Theme">◐</button><button onclick="openMore()" title="More">☰</button>
+      <button class="search-btn" onclick="openSearch()">🔍</button><button class="notification-nav" onclick="toggleBeyondNotificationPanel(event)" title="Notifications" aria-label="Notifications" aria-expanded="false">🔔<span id="beyondNotificationBadge" class="notification-badge" hidden>0</span></button><button onclick="openMessages()" title="Messages">💬</button><button onclick="toggleTheme()" title="Theme">◐</button><button onclick="openMore()" title="More">☰</button>
       <button class="login-btn" onclick="openLogin()">Log in</button>
     </div>
   <!-- Beyond Messages navigation -->
 <a href="messages.html" class="messages-nav-link" aria-label="Messages">💬 Messages</a>
-<style>.messages-nav-link{display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:inherit;font-weight:600;margin:0 8px}.messages-nav-link:hover{text-decoration:underline}.notification-nav{position:relative}.notification-badge{position:absolute;top:-5px;right:-7px;min-width:17px;height:17px;padding:0 4px;border-radius:999px;background:#ff2d55;color:#fff;font:700 10px/17px Arial,sans-serif;text-align:center;border:2px solid #fff}</style>
+<style>.messages-nav-link{display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:inherit;font-weight:600;margin:0 8px}.messages-nav-link:hover{text-decoration:underline}.notification-nav{position:relative}.notification-badge{position:absolute;top:-5px;right:-7px;min-width:17px;height:17px;padding:0 4px;border-radius:999px;background:#ff2d55;color:#fff;font:700 10px/17px Arial,sans-serif;text-align:center;border:2px solid #fff}.beyond-notification-panel{position:fixed;top:70px;right:18px;width:min(390px,calc(100vw - 36px));max-height:70vh;overflow:auto;background:var(--card-bg,#fff);color:var(--text,#111);border:1px solid rgba(0,0,0,.12);border-radius:18px;box-shadow:0 18px 50px rgba(0,0,0,.22);z-index:9999;padding:14px;display:none}.beyond-notification-panel.open{display:block}.beyond-notification-panel header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.beyond-notification-panel h3{margin:0}.beyond-notification-panel .notification-actions{display:flex;gap:8px}.beyond-notification-panel button{border:0;background:transparent;cursor:pointer}.beyond-notification-item{display:flex;gap:10px;padding:12px 8px;border-radius:12px;border-bottom:1px solid rgba(0,0,0,.07);text-align:left}.beyond-notification-item.unread{background:rgba(255,45,85,.08)}.beyond-notification-item .nicon{font-size:20px}.beyond-notification-item p{margin:2px 0 4px}.beyond-notification-item time{font-size:12px;opacity:.65}.beyond-notification-empty{padding:28px 10px;text-align:center;opacity:.7}.beyond-notification-footer{display:flex;justify-content:space-between;gap:8px;padding-top:10px}.beyond-notification-footer button{font-weight:700;padding:8px 10px;border-radius:9px;background:rgba(127,127,127,.12)}</style>
 </header>
 
   <section class="stories"><div class="story-add" onclick="openUpload()">＋<span>Your Story</span></div><div class="story">🔥<span>Trending</span></div><div class="story">🎵<span>Music</span></div><div class="story">⚽<span>Sports</span></div><div class="story">🎮<span>Gaming</span></div></section><section class="post-composer"><div class="composer-avatar" id="composerAvatar">B</div><input id="postText" maxlength="280" placeholder="What is happening on Beyond?"><button onclick="createSocialPost()">Post</button></section><main id="feed">
@@ -113,6 +113,43 @@
   <div id="moreOverlay" class="more-overlay" onclick="closeMore()"></div><aside id="morePanel" class="more-panel"><div class="more-head"><h2>Beyond Hub</h2><button onclick="closeMore()">✕</button></div><button onclick="openSearch()">🔎 Discover creators</button><button onclick="showSaved()">🔖 Saved posts</button><button onclick="showHistory()">🕘 Watch history</button><button onclick="toggleTheme();closeMore()">◐ Switch theme</button><button onclick="openSettings()">⚙️ Settings</button><div class="hub-stats"><strong>Beyond</strong><span>Connect • Create • Discover</span></div></aside>
 
   <script src="script.js"></script><script>initBeyondNotificationBadge();</script>
+<div id="beyondNotificationPanel" class="beyond-notification-panel" role="dialog" aria-label="Recent notifications" aria-hidden="true"></div>
+<script>
+(function(){
+  const safe=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
+  const nicon=t=>t==="like"?"❤️":t==="comment"?"💬":t==="follow"?"👤":t==="message"?"✉️":"🔔";
+  const ago=v=>{const d=new Date(v),s=Math.max(0,Math.floor((Date.now()-d.getTime())/1000));if(s<60)return s+"s";if(s<3600)return Math.floor(s/60)+"m";if(s<86400)return Math.floor(s/3600)+"h";return Math.floor(s/86400)+"d"};
+  window.toggleBeyondNotificationPanel=async function(e){
+    if(e)e.stopPropagation();
+    const panel=document.getElementById("beyondNotificationPanel"),btn=document.querySelector(".notification-nav");
+    if(!panel)return;
+    const open=panel.classList.toggle("open");
+    panel.setAttribute("aria-hidden",String(!open));
+    if(btn)btn.setAttribute("aria-expanded",String(open));
+    if(open)await renderBeyondNotificationPanel();
+  };
+  window.renderBeyondNotificationPanel=async function(){
+    const panel=document.getElementById("beyondNotificationPanel");if(!panel)return;
+    panel.innerHTML='<div class="beyond-notification-empty">Loading notifications…</div>';
+    try{
+      const user=await getCurrentBeyondUser();
+      if(!user){panel.innerHTML='<div class="beyond-notification-empty">Sign in to see notifications.</div>';return}
+      const rows=await getBeyondRecentNotifications(8);
+      panel.innerHTML='<header><h3>Notifications</h3><div class="notification-actions"><button onclick="markBeyondNotificationsRead();renderBeyondNotificationPanel()">✓ Read all</button><button onclick="location.href=\'notifications.html\'">View all</button></div></header>'+
+        (rows.length?rows.map(x=>{const actor=x.actor?.username||x.actor?.display_name||"Someone";return '<div class="beyond-notification-item '+(x.read?"":"unread")+'"><span class="nicon">'+nicon(x.type)+'</span><div><strong>'+safe(actor)+'</strong><p>'+safe(x.message||"New Beyond activity.")+'</p><time>'+safe(ago(x.created_at))+' ago</time></div></div>'}).join(""):'<div class="beyond-notification-empty">You’re all caught up.</div>')+
+        '<div class="beyond-notification-footer"><button onclick="renderBeyondNotificationPanel()">↻ Refresh</button><button onclick="location.href=\'notifications.html\'">Open Notifications</button></div>';
+      updateBeyondNotificationBadge();
+    }catch(err){panel.innerHTML='<div class="beyond-notification-empty">Could not load notifications.<br><br><button onclick="renderBeyondNotificationPanel()">Try again</button></div>'}
+  };
+  document.addEventListener("click",function(e){
+    const panel=document.getElementById("beyondNotificationPanel"),btn=document.querySelector(".notification-nav");
+    if(panel&&panel.classList.contains("open")&&!panel.contains(e.target)&&btn&&!btn.contains(e.target)){
+      panel.classList.remove("open");panel.setAttribute("aria-hidden","true");if(btn)btn.setAttribute("aria-expanded","false");
+    }
+  });
+  document.addEventListener("keydown",function(e){if(e.key==="Escape"){const p=document.getElementById("beyondNotificationPanel"),b=document.querySelector(".notification-nav");if(p){p.classList.remove("open");p.setAttribute("aria-hidden","true")}if(b)b.setAttribute("aria-expanded","false")}});
+})();
+</script>
 <div id="messagesOverlay" class="messages-overlay" onclick="closeMessages()"></div>
 <section id="messagesPanel" class="messages-panel">
   <div class="messages-head"><div><span class="eyebrow">BEYOND CHAT</span><h2>Messages</h2></div><button onclick="closeMessages()">✕</button></div>
