@@ -110,7 +110,7 @@ async function getBeyondOwnProfile(){
   const db=beyondDB||initBeyondDatabase();
   const user=await getCurrentBeyondUser();
   if(!db||!user)return null;
-  const {data,error}=await db.from("profiles").select("id,username,display_name,bio,avatar_url").eq("id",user.id).maybeSingle();
+  const {data,error}=await db.from("profiles").select("id,username,display_name,bio,avatar_url,banner_url,accent_color").eq("id",user.id).maybeSingle();
   if(error) throw error;
   return data;
 }
@@ -124,7 +124,9 @@ async function updateBeyondOwnProfile(fields){
     username:fields.username,
     display_name:fields.display_name ?? fields.username,
     bio:fields.bio ?? "",
-    avatar_url:fields.avatar_url ?? null
+    avatar_url:fields.avatar_url ?? null,
+    banner_url:fields.banner_url ?? null,
+    accent_color:fields.accent_color ?? "#ff2d55"
   };
   const {data,error}=await db.from("profiles").upsert(payload,{onConflict:"id"}).select().single();
   if(error) throw error;
