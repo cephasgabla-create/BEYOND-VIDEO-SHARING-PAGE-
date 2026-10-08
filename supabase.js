@@ -224,6 +224,21 @@ async function getBeyondNotifications(limit=30){
   return data||[];
 }
 
+async function getBeyondRecentNotifications(limit=8){
+  const db=beyondDB||initBeyondDatabase();
+  const user=await getCurrentBeyondUser();
+  if(!db||!user) return [];
+  const {data,error}=await db.from("notifications").select("id,type,message,read,created_at,actor_id").eq("user_id",user.id).order("created_at",{ascending:false}).limit(Math.min(Math.max(Number(limit)||8,1),20));
+  if(error) throw error;
+  const rows=data||[];
+  const ids=[...new Set(rows.map(x=>x.actor_id).filter(Boolean))];
+  if(!ids.length) return rows;
+  const {data:profiles,error:profileError}=await db.from("profiles").select("id,username,display_name,avatar_url").in("id",ids);
+  if(profileError) throw profileError;
+  const map=new Map((profiles||[]).map(p=>[p.id,p]));
+  return rows.map(x=>({...x,actor:map.get(x.actor_id)||null}));
+}
+
 async function getBeyondUnreadNotificationCount(){
   const db=beyondDB||initBeyondDatabase();
   const user=await getCurrentBeyondUser();
