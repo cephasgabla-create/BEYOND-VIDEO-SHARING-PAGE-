@@ -1,4 +1,4 @@
-let videos=[];let likes=[];let comments=[];let range=7;let analyticsChannel=null;let analyticsChannel=null;
+let videos=[];let likes=[];let comments=[];let range=7;let analyticsChannel=null;
 document.addEventListener("DOMContentLoaded",loadAnalytics);
 async function db(){return new Promise((ok,no)=>{const r=indexedDB.open("BeyondDatabase",4);r.onupgradeneeded=e=>{const d=e.target.result;if(!d.objectStoreNames.contains("videos"))d.createObjectStore("videos",{keyPath:"id",autoIncrement:true});if(!d.objectStoreNames.contains("comments"))d.createObjectStore("comments",{keyPath:"id",autoIncrement:true});if(!d.objectStoreNames.contains("likes"))d.createObjectStore("likes",{keyPath:"key"});};r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})}
 function all(d,n){return new Promise((ok,no)=>{const r=d.transaction(n,"readonly").objectStore(n).getAll();r.onsuccess=()=>ok(r.result||[]);r.onerror=()=>no(r.error)})}
