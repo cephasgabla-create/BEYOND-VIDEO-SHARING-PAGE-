@@ -1,6 +1,69 @@
 const form=document.getElementById("signupForm");
 const message=document.getElementById("signupMessage");
 const button=document.getElementById("signupButton");
-function configured(){return typeof BEYOND_SUPABASE_URL==="string"&&typeof BEYOND_SUPABASE_ANON_KEY==="string"&&!BEYOND_SUPABASE_URL.startsWith("YOUR_")&&!BEYOND_SUPABASE_ANON_KEY.startsWith("YOUR_")}
-function saveSession(user,username){localStorage.setItem("beyondLoggedIn","true");localStorage.setItem("beyondEmail",user?.email||"");localStorage.setItem("beyondUsername",username)}
-form.addEventListener("submit",async e=>{e.preventDefault();message.textContent="";const username=document.getElementById("username").value.trim().replace(/^@/,""),email=document.getElementById("email").value.trim().toLowerCase(),password=document.getElementById("password").value,confirm=document.getElementById("confirmPassword").value;if(username.length<3){message.textContent="Username must be at least 3 characters.";return}if(!/^[a-zA-Z0-9._-]+$/.test(username)){message.textContent="Use only letters, numbers, dots, underscores or hyphens.";return}if(password.length<6){message.textContent="Password must be at least 6 characters.";return}if(password!==confirm){message.textContent="Passwords do not match.";return}button.disabled=true;button.textContent="Creating account…";try{if(configured()){const db=window.beyondDB||initBeyondDatabase();if(!db)throw new Error("Beyond database is unavailable.");const {data,error}=await db.auth.signUp({email,password,options:{data:{username}}});if(error)throw error;if(data.user){const {error:profileError}=await db.from("profiles").upsert({id:data.user.id,username,display_name:username},{onConflict:"id"});if(profileError)console.warn("Profile setup:",profileError.message)}if(!data.session){message.textContent="Account created. Check your email to confirm it, then log in.";button.disabled=false;button.textContent="Create account";return}saveSession(data.user,username);location.replace("index.html");return}const users=JSON.parse(localStorage.getItem("beyondUsers")||"[]");if(users.some(u=>u.username.toLowerCase()===username.toLowerCase()))throw new Error("That username is already taken.");if(users.some(u=>u.email===email))throw new Error("An account with that email already exists.");users.push({username,email,password});localStorage.setItem("beyondUsers",JSON.stringify(users));saveSession({email},username);location.replace("index.html")}catch(error){console.error(error);message.textContent=error?.message||"Could not create your account.";button.disabled=false;button.textContent="Create account"}});
+
+function configured(){return typeof beyondDatabaseConfigured==="function"&&beyondDatabaseConfigured()}
+
+function saveSession(user,profile,remember=true){
+  localStorage.setItem("beyondLoggedIn","true");
+  sessionStorage.removeItem("beyondLoggedIn");
+  localStorage.setItem("beyondEmail",user?.email||"");
+  localStorage.setItem("beyondUsername",profile?.username||user?.user_metadata?.username||"Beyond User");
+}
+
+form.addEventListener("submit",async e=>{
+  e.preventDefault();
+  message.textContent="";
+  const username=document.getElementById("username").value.trim().replace(/^@/,"");
+  const email=document.getElementById("email").value.trim().toLowerCase();
+  const password=document.getElementById("password").value;
+  const confirm=document.getElementById("confirmPassword").value;
+  if(username.length<3){message.textContent="Username must be at least 3 characters.";return}
+  if(!/^[a-zA-Z0-9._-]+$/.test(username)){message.textContent="Use only letters, numbers, dots, underscores or hyphens.";return}
+  if(password.length<6){message.textContent="Password must be at least 6 characters.";return}
+  if(password!==confirm){message.textContent="Passwords do not match.";return}
+  button.disabled=true;button.textContent="Creating account…";
+  try{
+    if(!configured()) throw new Error("Beyond Supabase is not configured yet. Add your Supabase URL and anon key in supabase.js.");
+    const db=window.beyondDB||initBeyondDatabase();
+    if(!db)throw new Error("Beyond database is unavailable.");
+
+    const {data:existing,error:existingError}=await db.from("profiles").select("id").ilike("username",username).maybeSingle();
+    if(existingError)throw existingError;
+    if(existing)throw new Error("That username is already taken.");
+
+    const {data,error}=await db.auth.signUp({
+      email,password,
+      options:{data:{username,display_name:username}}
+    });
+    if(error)throw error;
+    if(!data.user)throw new Error("Supabase did not create the account.");
+
+    let profile=null;
+    const {data:createdProfile,error:profileError}=await db.from("profiles")
+      .select("id,username,display_name,bio,avatar_url,banner_url,accent_color")
+      .eq("id",data.user.id).maybeSingle();
+    if(profileError) console.warn("Profile will be created by the database trigger:",profileError.message);
+    profile=createdProfile;
+
+    if(!data.session){
+      message.textContent="Account created. Check your email to confirm it, then log in.";
+      button.disabled=false;button.textContent="Create account";
+      return;
+    }
+
+    if(!profile){
+      const {data:upserted,error:upsertError}=await db.from("profiles")
+        .upsert({id:data.user.id,username,display_name:username},{onConflict:"id"})
+        .select("id,username,display_name,bio,avatar_url,banner_url,accent_color").single();
+      if(upsertError)throw upsertError;
+      profile=upserted;
+    }
+    saveSession(data.user,profile,true);
+    location.replace("index.html");
+  }catch(error){
+    console.error(error);
+    message.textContent=error?.message||"Could not create your account.";
+    button.disabled=false;button.textContent="Create account";
+  }
+});
