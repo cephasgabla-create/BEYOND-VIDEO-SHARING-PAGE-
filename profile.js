@@ -48,10 +48,27 @@ function getFollowersFor(username){
   return Array.isArray(map[username])?map[username]:[];
 }
 
-function loadFollowStats(){
+async function loadFollowStats(){
   const user=currentUser();
   followingEl.textContent=getFollowingList().length;
   followersEl.textContent=getFollowersFor(user).length;
+
+  try{
+    if(typeof initBeyondDatabase==="function" && typeof getCurrentBeyondUser==="function" && typeof getBeyondFollowStatsByUserId==="function"){
+      const db=initBeyondDatabase();
+      if(db){
+        const authUser=await getCurrentBeyondUser();
+        if(authUser){
+          const stats=await getBeyondFollowStatsByUserId(authUser.id);
+          followingEl.textContent=stats.following;
+          followersEl.textContent=stats.followers;
+          toggleOwnFollowInfo();
+        }
+      }
+    }
+  }catch(error){
+    console.warn("Beyond Supabase follower stats unavailable:",error);
+  }
 }
 
 async function loadVideos(){
@@ -123,13 +140,9 @@ function editProfile(){
 async function loadNotifications(){const db=await openDB();const req=db.transaction("notifications","readonly").objectStore("notifications").getAll();req.onsuccess=()=>{const count=req.result.filter(n=>n.username===currentUser()&&!n.read).length;const b=document.getElementById("notificationButton");if(b)b.textContent=count?"🔔 "+count:"🔔 Notifications"};}
 
 function toggleOwnFollowInfo(){
-  const user=currentUser();
-  const followers=getFollowersFor(user);
-  const following=getFollowingList();
   const summary=document.getElementById("followSummary");
-  if(summary){
-    summary.textContent=following.length+" following • "+followers.length+" followers";
-  }
+  if(!summary)return;
+  summary.textContent=followingEl.textContent+" following • "+followersEl.textContent+" followers";
 }
 
 function openNotifications(){location.href="notifications.html";}
