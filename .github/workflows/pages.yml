@@ -178,3 +178,4 @@ jobs:
         uses: actions/deploy-pages@v4
 # Deployment validation: keep all static-site checks enabled.
 # Syntax fix verification.
+# Audience analytics validation.
