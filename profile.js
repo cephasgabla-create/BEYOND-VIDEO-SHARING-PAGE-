@@ -77,6 +77,7 @@ async function editProfile(){
 }
 function toggleOwnFollowInfo(){const summary=document.getElementById("followSummary");if(summary)summary.textContent=followingEl.textContent+" following • "+followersEl.textContent+" followers"}
 function openNotifications(){location.href="notifications.html"}
+function openMessages(){location.href="messages.html"}
 function goHome(){location.href="index.html"}
 function openUpload(){location.href="upload.html"}
 function openSearch(){location.href="search.html"}
