@@ -644,6 +644,7 @@ async function endLive(){
 }
 
 async function loadDatabaseFeed(){
+ if(document.getElementById("feed") && (beyondActiveFeed==="for-you" || beyondActiveFeed==="following")) return;
  const db=window.beyondDB||initBeyondDatabase();
  if(!db)return;
  const feed=document.getElementById("feed");
@@ -698,7 +699,7 @@ async function likeDatabaseVideo(button,videoId){
    button.classList.add("liked");
  }
 }
-document.addEventListener("DOMContentLoaded",()=>{setTimeout(loadDatabaseFeed,250)});
+/* The home feed is rendered only by the canonical Supabase For You/Following loader. */
 
 let beyondRealtimeChannel=null;
 async function enableBeyondRealtime(){
@@ -706,7 +707,7 @@ async function enableBeyondRealtime(){
  if(!db||beyondRealtimeChannel)return;
  beyondRealtimeChannel=db.channel("beyond-live-feed")
  .on("postgres_changes",{event:"INSERT",schema:"public",table:"videos"},()=>{
-   loadDatabaseFeed();
+   if(beyondActiveFeed==="for-you" || beyondActiveFeed==="following") scheduleForYouRefresh();
  })
  .on("postgres_changes",{event:"UPDATE",schema:"public",table:"videos"},payload=>{
    const card=document.querySelector('[data-db-video-id="'+payload.new.id+'"]');
