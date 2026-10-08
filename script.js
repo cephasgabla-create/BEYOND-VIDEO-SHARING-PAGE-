@@ -56,10 +56,74 @@ function openSettings(){alert("Settings: Theme, autoplay, privacy and account co
 async function shareVideo(){if(navigator.share){try{await navigator.share({title:"Beyond",text:"Check out this video on Beyond!"})}catch{}}else alert("Sharing is not supported by this browser yet.")}
 
 function openLogin(){location.href="login.html"}function openUpload(){location.href="upload.html"}function openProfile(){location.href="profile.html"}function openSearch(){location.href="search.html"}
-function getFollowing(){try{return JSON.parse(localStorage.getItem("beyondFollowing")||"[]")}catch{return[]}}
-function saveFollowing(list){localStorage.setItem("beyondFollowing",JSON.stringify(list))}
-function toggleFollow(username,button){const currentUser=localStorage.getItem("beyondUsername");if(!currentUser){alert("Please create a Beyond account before following creators.");location.href="login.html";return}if(currentUser===username){alert("You cannot follow yourself.");return}let following=getFollowing();const index=following.indexOf(username);if(index===-1)following.push(username);else following.splice(index,1);saveFollowing(following);updateFollowButton(username,button);if(index===-1){openDatabase().then(db=>{const tx=db.transaction("notifications","readwrite");tx.objectStore("notifications").add({username,type:"follow",actor:currentUser,text:"@"+currentUser+" followed you",createdAt:new Date().toISOString(),read:false})})}}
-function updateFollowButton(username,button){const following=getFollowing(),isFollowing=following.includes(username);button.textContent=isFollowing?"Following":"Follow";button.classList.toggle("following",isFollowing)}
+function getFollowing(){
+  try{return JSON.parse(localStorage.getItem("beyondFollowing")||"[]")}
+  catch{return []}
+}
+function saveFollowing(list){
+  localStorage.setItem("beyondFollowing",JSON.stringify([...new Set(list)]));
+}
+function getFollowersMap(){
+  try{return JSON.parse(localStorage.getItem("beyondFollowers")||"{}")}
+  catch{return {}}
+}
+function saveFollowersMap(map){
+  localStorage.setItem("beyondFollowers",JSON.stringify(map));
+}
+function updateFollowerRecord(username,currentUser,following){
+  const map=getFollowersMap();
+  const followers=Array.isArray(map[username])?map[username]:[];
+  const index=followers.indexOf(currentUser);
+  if(following && index===-1) followers.push(currentUser);
+  if(!following && index!==-1) followers.splice(index,1);
+  map[username]=followers;
+  saveFollowersMap(map);
+  return followers.length;
+}
+function toggleFollow(username,button){
+  const currentUser=localStorage.getItem("beyondUsername");
+  if(!currentUser){
+    alert("Please log in before following creators.");
+    location.href="login.html";
+    return;
+  }
+  if(currentUser===username){
+    alert("You cannot follow yourself.");
+    return;
+  }
+  let following=getFollowing();
+  const index=following.indexOf(username);
+  const nowFollowing=index===-1;
+  if(nowFollowing) following.push(username);
+  else following.splice(index,1);
+  saveFollowing(following);
+  updateFollowerRecord(username,currentUser,nowFollowing);
+  updateFollowButton(username,button);
+  document.querySelectorAll(".video-card").forEach(card=>{
+    if(card.dataset.creator===username){
+      card.querySelectorAll(".follow-button").forEach(b=>updateFollowButton(username,b));
+    }
+  });
+  if(nowFollowing){
+    openDatabase().then(db=>{
+      const tx=db.transaction("notifications","readwrite");
+      tx.objectStore("notifications").add({
+        username,
+        type:"follow",
+        actor:currentUser,
+        text:"@"+currentUser+" followed you",
+        createdAt:new Date().toISOString(),
+        read:false
+      });
+    });
+  }
+}
+function updateFollowButton(username,button){
+  if(!button)return;
+  const following=getFollowing().includes(username);
+  button.textContent=following?"Following":"Follow";
+  button.classList.toggle("following",following);
+}
 function updateAllFollowButtons(){document.querySelectorAll(".follow-button").forEach(button=>{const row=button.closest(".creator-row");if(row)updateFollowButton(row.querySelector("h3").textContent.replace("@",""),button)})}
 function showFollowing(){const following=getFollowing();document.querySelectorAll(".video-card").forEach(card=>card.style.display=following.includes(card.dataset.creator)?"flex":"none");if(!following.length)alert("You are not following anyone yet. Follow a creator first!")}
 function showFeed(){document.querySelectorAll(".video-card").forEach(card=>card.style.display="flex");document.getElementById("feed").scrollTo({top:0,behavior:"smooth"})}
