@@ -459,3 +459,110 @@ exception when duplicate_object then null; end $$;
 do $$ begin
   alter publication supabase_realtime add table public.messages;
 exception when duplicate_object then null; end $$;
+
+
+-- Beyond For You recommendation feed.
+-- Scores videos using real views, likes, comments, follows, hashtag affinity,
+-- creator activity, freshness, and a small diversity factor.
+create or replace function public.get_beyond_for_you_feed(p_limit integer default 30)
+returns table (
+  id bigint,
+  user_id uuid,
+  video_url text,
+  caption text,
+  hashtags text,
+  views_count bigint,
+  likes_count integer,
+  comments_count bigint,
+  created_at timestamptz,
+  username text,
+  display_name text,
+  avatar_url text,
+  recommendation_score numeric
+)
+language sql
+security definer
+set search_path = public
+as $$
+with current_user_id as (
+  select auth.uid() as id
+),
+liked_videos as (
+  select distinct l.video_id
+  from likes l
+  where l.user_id = (select id from current_user_id)
+),
+commented_videos as (
+  select distinct c.video_id
+  from comments c
+  where c.user_id = (select id from current_user_id)
+),
+interest_tags as (
+  select lower(trim(tag)) as tag
+  from (
+    select regexp_split_to_table(coalesce(v.hashtags,''), '\s+') as tag
+    from videos v
+    where v.id in (
+      select video_id from liked_videos
+      union
+      select video_id from commented_videos
+    )
+  ) tags
+  where trim(tag) <> ''
+),
+followed_creators as (
+  select f.following_id
+  from follows f
+  where f.follower_id = (select id from current_user_id)
+),
+creator_activity as (
+  select v.user_id, count(*)::numeric as recent_posts
+  from videos v
+  where v.status = 'published'
+    and v.created_at >= now() - interval '7 days'
+  group by v.user_id
+),
+comment_counts as (
+  select c.video_id, count(*)::bigint as comments_count
+  from comments c
+  group by c.video_id
+)
+select
+  v.id,
+  v.user_id,
+  v.video_url,
+  v.caption,
+  v.hashtags,
+  coalesce(v.views_count,0),
+  coalesce(v.likes_count,0),
+  coalesce(cc.comments_count,0),
+  v.created_at,
+  p.username,
+  p.display_name,
+  p.avatar_url,
+  (
+    case when v.user_id in (select following_id from followed_creators) then 55 else 0 end
+    + case when exists (
+        select 1
+        from regexp_split_to_table(lower(coalesce(v.hashtags,'')), '\s+') candidate
+        where trim(candidate) <> ''
+          and trim(candidate) in (select tag from interest_tags)
+      ) then 30 else 0 end
+    + least(25, ln(1 + greatest(coalesce(v.views_count,0),0)::numeric) * 3)
+    + least(24, ln(1 + greatest(coalesce(v.likes_count,0),0)::numeric) * 5)
+    + least(24, ln(1 + greatest(coalesce(cc.comments_count,0),0)::numeric) * 6)
+    + least(18, coalesce(ca.recent_posts,0) * 4)
+    + greatest(0, 28 - extract(epoch from (now() - v.created_at))/86400 * 2)
+    + (random() * 3)
+  )::numeric as recommendation_score
+from videos v
+join profiles p on p.id = v.user_id
+left join comment_counts cc on cc.video_id = v.id
+left join creator_activity ca on ca.user_id = v.user_id
+where v.status = 'published'
+order by recommendation_score desc, v.created_at desc
+limit greatest(1, least(coalesce(p_limit,30),100));
+$$;
+
+grant execute on function public.get_beyond_for_you_feed(integer) to anon, authenticated;
+
