@@ -312,12 +312,13 @@ async function markBeyondConversationRead(otherUserId){
   return true;
 }
 
-function subscribeBeyondMessages(callback){
+function subscribeBeyondMessages(userId,callback){
   const db=beyondDB||initBeyondDatabase();
   if(!db) throw new Error("Supabase is not configured.");
-  return db.channel("beyond-direct-messages")
+  if(!userId||typeof callback!=="function") throw new Error("A user ID and callback are required.");
+  return db.channel("beyond-direct-messages-"+userId)
     .on("postgres_changes",{event:"INSERT",schema:"public",table:"messages"},payload=>{
       const m=payload.new||{};
-      if(m.sender_id===window.__beyondCurrentUserId||m.receiver_id===window.__beyondCurrentUserId) callback(m);
+      if(m.sender_id===userId||m.receiver_id===userId) callback(m);
     }).subscribe();
 }
