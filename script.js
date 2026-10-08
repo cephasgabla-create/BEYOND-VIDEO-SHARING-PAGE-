@@ -183,6 +183,7 @@ async function likeRemoteVideo(button,videoId){
   const db=initBeyondDatabase();
   const user=await getCurrentBeyondUser();
   if(!db||!user){alert("Please log in to like videos.");return;}
+  if(await isBeyondUserBlocked((await db.from("videos").select("user_id").eq("id",videoId).single()).data?.user_id)){alert("This interaction is unavailable because the account is blocked.");return;}
   try{
     const {data:existing}=await db.from("likes").select("video_id").eq("video_id",videoId).eq("user_id",user.id).maybeSingle();
     if(existing){
@@ -267,6 +268,7 @@ function createVideoCard(post){
 async function likeVideo(button,videoId){
  const db=initBeyondDatabase();const user=await getCurrentBeyondUser();
  if(!db||!user){location.href="login.html";return}
+ if(await isBeyondUserBlocked((await db.from("videos").select("user_id").eq("id",videoId).single()).data?.user_id)){alert("This interaction is unavailable because the account is blocked.");return}
  try{
   const {data:existing,error}=await db.from("likes").select("video_id").eq("user_id",user.id).eq("video_id",videoId).maybeSingle();
   if(error)throw error;
@@ -389,6 +391,8 @@ async function addComment(){
  const db=initBeyondDatabase();const user=await getCurrentBeyondUser();
  if(!db||!user){location.href="login.html";return}
  if(typeof currentPostId!=="number"){alert("Comments are unavailable for this video.");return}
+  const owner=(await db.from("videos").select("user_id").eq("id",currentPostId).single()).data?.user_id;
+  if(owner&&await isBeyondUserBlocked(owner)){alert("Comments are unavailable for this account.");return}
  try{
   const {error}=await db.from("comments").insert({video_id:currentPostId,user_id:user.id,content:text});
   if(error)throw error;
