@@ -212,3 +212,37 @@ async function markBeyondMessageRead(messageId){
   if(error) throw error;
   return data;
 }
+
+
+async function getBeyondNotifications(limit=30){
+  const db=beyondDB||initBeyondDatabase();
+  const user=await getCurrentBeyondUser();
+  if(!db||!user) throw new Error("Please sign in first.");
+  const {data,error}=await db.from("notifications")
+    .select("id,type,message,read,created_at,actor_id,video_id,comment_id")
+    .eq("user_id",user.id)
+    .order("created_at",{ascending:false})
+    .limit(Math.min(Math.max(Number(limit)||30,1),100));
+  if(error) throw error;
+  return data||[];
+}
+
+async function getBeyondUnreadNotificationCount(){
+  const db=beyondDB||initBeyondDatabase();
+  const user=await getCurrentBeyondUser();
+  if(!db||!user) return 0;
+  const {data,error}=await db.rpc("get_beyond_unread_notification_count");
+  if(error) throw error;
+  return Number(data||0);
+}
+
+async function markBeyondNotificationsRead(ids=[]){
+  const db=beyondDB||initBeyondDatabase();
+  const user=await getCurrentBeyondUser();
+  if(!db||!user) throw new Error("Please sign in first.");
+  let query=db.from("notifications").update({read:true}).eq("user_id",user.id);
+  if(Array.isArray(ids)&&ids.length) query=query.in("id",ids);
+  const {error}=await query;
+  if(error) throw error;
+  return true;
+}
