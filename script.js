@@ -668,7 +668,7 @@ async function loadDatabaseFeed(){
       </div>
       <div class="video-actions">
         <button class="like-button" onclick="likeDatabaseVideo(this,${v.id})">❤️ <span>${Number(v.likes_count||0)}</span></button>
-        <button onclick="commentVideo('db-'+${v.id})">💬 <span>Comment</span></button>
+        <button onclick="commentVideo(${v.id})">💬 <span>Comment</span></button>
         <button onclick="shareVideo()">↗️ <span>Share</span></button>
         <button onclick="saveVideo(this)">🔖 <span>Save</span></button>
       </div>
@@ -729,3 +729,72 @@ document.addEventListener("DOMContentLoaded",()=>{
  showFeedLoading();
  setTimeout(enableBeyondRealtime,700);
 });
+
+/* Beyond desktop rail */
+let beyondRailMode="recommend";
+let beyondRailVideoId=null;
+function beyondRailEscape(value){const d=document.createElement("div");d.textContent=String(value??"");return d.innerHTML}
+async function initBeyondDesktopRail(){
+ const rail=document.getElementById("beyondRailContent");if(!rail)return;
+ document.getElementById("railCommentsTab")?.addEventListener("click",()=>{beyondRailMode="comments";document.getElementById("railCommentsTab").classList.add("active");document.getElementById("railRecommendTab")?.classList.remove("active");loadBeyondRailComments()});
+ document.getElementById("railRecommendTab")?.addEventListener("click",()=>{beyondRailMode="recommend";document.getElementById("railRecommendTab").classList.add("active");document.getElementById("railCommentsTab")?.classList.remove("active");loadBeyondRailRecommendations()});
+ document.querySelectorAll("#feed .video-card").forEach(card=>beyondRailBindCard(card));
+ await loadBeyondRailRecommendations();
+}
+function beyondRailBindCard(card){
+ if(!card||card.dataset.railBound)return;
+ card.dataset.railBound="true";
+ card.addEventListener("click",e=>{
+   if(e.target.closest("button"))return;
+   const id=card.dataset.dbVideoId||card.dataset.postId;
+   const numeric=Number(id);
+   beyondRailVideoId=Number.isFinite(numeric)&&numeric>0?numeric:null;
+   if(beyondRailMode==="comments")loadBeyondRailComments();else loadBeyondRailRecommendations();
+ });
+}
+async function loadBeyondRailRecommendations(){
+ const rail=document.getElementById("beyondRailContent");if(!rail)return;
+ const db=window.beyondDB||initBeyondDatabase();
+ if(!db){rail.innerHTML='<div class="rail-empty">Connect Supabase to see Beyond recommendations.</div>';return}
+ rail.innerHTML='<div class="rail-empty">Loading recommendations…</div>';
+ try{
+   const {data,error}=await db.from("videos").select("id,user_id,video_url,caption,likes_count,views_count,created_at,profiles(username,display_name,avatar_url)").eq("status","published").order("created_at",{ascending:false}).limit(12);
+   if(error)throw error;
+   const rows=(data||[]).filter(v=>v.id!==beyondRailVideoId);
+   if(!rows.length){rail.innerHTML='<div class="rail-empty">No recommendations yet.</div>';return}
+   rail.innerHTML="";
+   rows.slice(0,8).forEach(v=>{
+     const card=document.createElement("article");card.className="rail-video-card";
+     const video=document.createElement("video");video.src=v.video_url||"";video.muted=true;video.playsInline=true;video.preload="metadata";
+     const info=document.createElement("div");info.className="rail-video-info";
+     const user=v.profiles?.username||v.profiles?.display_name||"Beyond creator";
+     const strong=document.createElement("strong");strong.textContent="@"+user;
+     const p=document.createElement("p");p.textContent=v.caption||"Beyond video";
+     const span=document.createElement("span");span.textContent=Number(v.views_count||0)+" views • "+Number(v.likes_count||0)+" likes";
+     info.append(strong,p,span);card.append(video,info);
+     card.onclick=()=>{const target=document.querySelector('[data-db-video-id="'+v.id+'"]');if(target)target.scrollIntoView({behavior:"smooth",block:"center"});beyondRailVideoId=v.id};
+     rail.appendChild(card);
+   });
+ }catch(error){console.error(error);rail.innerHTML='<div class="rail-empty">Recommendations are temporarily unavailable.</div>'}
+}
+async function loadBeyondRailComments(){
+ const rail=document.getElementById("beyondRailContent");if(!rail)return;
+ if(!beyondRailVideoId){rail.innerHTML='<div class="rail-empty">Click a video to see its comments here.</div>';return}
+ const db=window.beyondDB||initBeyondDatabase();if(!db)return;
+ rail.innerHTML='<div class="rail-empty">Loading comments…</div>';
+ try{
+   const {data,error}=await db.from("comments").select("id,user_id,content,created_at,profiles(username,display_name,avatar_url)").eq("video_id",beyondRailVideoId).order("created_at",{ascending:false}).limit(40);
+   if(error)throw error;
+   rail.innerHTML="";
+   if(!data?.length){rail.innerHTML='<div class="rail-empty">No comments yet. Be the first to comment.</div>';return}
+   data.forEach(row=>{
+     const item=document.createElement("article");item.className="rail-comment-item";
+     const avatar=document.createElement("div");avatar.className="rail-avatar";avatar.textContent=(row.profiles?.username||row.profiles?.display_name||"B").charAt(0).toUpperCase();
+     const body=document.createElement("div");body.className="rail-comment-body";
+     const strong=document.createElement("strong");strong.textContent="@"+(row.profiles?.username||row.profiles?.display_name||"Beyond user");
+     const p=document.createElement("p");p.textContent=row.content||"";
+     body.append(strong,p);item.append(avatar,body);rail.appendChild(item);
+   });
+ }catch(error){console.error(error);rail.innerHTML='<div class="rail-empty">Comments are temporarily unavailable.</div>'}
+}
+document.addEventListener("DOMContentLoaded",()=>setTimeout(initBeyondDesktopRail,900));
