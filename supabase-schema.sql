@@ -380,3 +380,82 @@ grant execute on function public.change_live_viewer_count(bigint, integer) to an
 -- Persistent creator branding fields.
 alter table public.profiles add column if not exists banner_url text;
 alter table public.profiles add column if not exists accent_color text default '#ff2d55';
+
+
+-- Posts: public feed reads, owner writes.
+do $$ begin
+  create policy "posts are publicly readable" on public.posts for select using (true);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  create policy "users create their posts" on public.posts for insert to authenticated
+    with check (user_id = auth.uid());
+exception when duplicate_object then null; end $$;
+do $$ begin
+  create policy "users update their posts" on public.posts for update to authenticated
+    using (user_id = auth.uid()) with check (user_id = auth.uid());
+exception when duplicate_object then null; end $$;
+do $$ begin
+  create policy "users delete their posts" on public.posts for delete to authenticated
+    using (user_id = auth.uid());
+exception when duplicate_object then null; end $$;
+
+-- Direct messages: only the sender/receiver can read; only the sender can create.
+do $$ begin
+  create policy "users read their messages" on public.messages for select to authenticated
+    using (sender_id = auth.uid() or receiver_id = auth.uid());
+exception when duplicate_object then null; end $$;
+do $$ begin
+  create policy "users send messages" on public.messages for insert to authenticated
+    with check (sender_id = auth.uid());
+exception when duplicate_object then null; end $$;
+do $$ begin
+  create policy "receivers can mark messages read" on public.messages for update to authenticated
+    using (receiver_id = auth.uid()) with check (receiver_id = auth.uid());
+exception when duplicate_object then null; end $$;
+
+alter table public.posts enable row level security;
+alter table public.messages enable row level security;
+
+create index if not exists posts_user_idx on public.posts(user_id, created_at desc);
+create index if not exists posts_created_idx on public.posts(created_at desc);
+
+-- Ensure new profiles can be created automatically when a Supabase Auth account is registered.
+create or replace function public.handle_new_beyond_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (id, username, display_name)
+  values (
+    new.id,
+    coalesce(
+      nullif(new.raw_user_meta_data->>'username',''),
+      'beyond_' || substr(replace(new.id::text,'-',''),1,10)
+    ),
+    coalesce(
+      nullif(new.raw_user_meta_data->>'display_name',''),
+      nullif(new.raw_user_meta_data->>'username',''),
+      'Beyond User'
+    )
+  )
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_beyond_auth_user_created on auth.users;
+create trigger on_beyond_auth_user_created
+after insert on auth.users
+for each row execute function public.handle_new_beyond_user();
+
+-- Realtime for posts and follows/messages.
+alter table public.posts replica identity full;
+alter table public.messages replica identity full;
+do $$ begin
+  alter publication supabase_realtime add table public.posts;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table public.messages;
+exception when duplicate_object then null; end $$;
