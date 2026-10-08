@@ -47,7 +47,7 @@ form.addEventListener("submit",async e=>{
       return;
     }
 
-    const {data:ensuredProfile,error:ensureError}=await db.rpc("ensure_beyond_profile");
+    const {data:ensuredProfile,error:ensureError}=await db.rpc("ensure_beyond_profile",{requested_username:username,requested_display_name:username});
     if(ensureError)throw ensureError;
     profile=ensuredProfile;
     saveSession(data.user,profile,true);
