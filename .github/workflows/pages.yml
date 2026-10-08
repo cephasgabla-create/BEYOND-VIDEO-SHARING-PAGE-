@@ -176,3 +176,4 @@ jobs:
       - name: Deploy Beyond
         id: deployment
         uses: actions/deploy-pages@v4
+# Deployment validation: keep all static-site checks enabled.
