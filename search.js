@@ -38,7 +38,7 @@ function renderResults(profiles,videos,q){
   const block=document.createElement("button");block.className="block-button";
   const refreshBlockButton=async()=>{try{block.textContent=await isBeyondUserBlocked(profile.id)?"Unblock":"Block"}catch{block.textContent="Block"}};
   block.onclick=async()=>{try{const blocked=await isBeyondUserBlocked(profile.id);if(blocked){await setBeyondUserBlocked(profile.id,false)}else if(confirm("Block this account? Their content and interactions with you will be hidden.")){await setBeyondUserBlocked(profile.id,true)}await performSearch()}catch(e){alert(e.message||"Could not update block setting.")}};
-  updateSearchFollowButton(follow,profile.id);await refreshBlockButton();
+  updateSearchFollowButton(follow,profile.id);refreshBlockButton();
   actions.append(follow,block);card.append(name,bio,actions);results.appendChild(card);
  });
  const vh=document.createElement("h3");vh.textContent="Videos";results.appendChild(vh);
