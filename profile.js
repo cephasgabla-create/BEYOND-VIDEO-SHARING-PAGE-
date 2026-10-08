@@ -203,7 +203,8 @@ async function showLikedVideos(){
 
   likesReq.onsuccess=()=>{
     videosReq.onsuccess=()=>{
-      const likedIds=new Set(likesReq.result.map(l=>l.postId));
+      const current=localStorage.getItem("beyondUsername");
+      const likedIds=new Set(likesReq.result.filter(l=>l.username===current).map(l=>l.postId));
       const likedVideos=videosReq.result.filter(v=>likedIds.has(v.id)).reverse();
       const container=document.getElementById("profileVideos");
       if(!container)return;
