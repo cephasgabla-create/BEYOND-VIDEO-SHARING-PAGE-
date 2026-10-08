@@ -264,11 +264,12 @@ async function likeDatabaseVideo(button,videoId){
 }
 document.addEventListener("DOMContentLoaded",()=>{setTimeout(loadDatabaseFeed,250)});
 
+let beyondRealtimeChannel=null;
 async function enableBeyondRealtime(){
  const db=window.beyondDB||initBeyondDatabase();
- if(!db)return;
- db.channel("beyond-live-feed")
- .on("postgres_changes",{event:"INSERT",schema:"public",table:"videos"},payload=>{
+ if(!db||beyondRealtimeChannel)return;
+ beyondRealtimeChannel=db.channel("beyond-live-feed")
+ .on("postgres_changes",{event:"INSERT",schema:"public",table:"videos"},()=>{
    loadDatabaseFeed();
  })
  .on("postgres_changes",{event:"UPDATE",schema:"public",table:"videos"},payload=>{
@@ -276,9 +277,11 @@ async function enableBeyondRealtime(){
    const like=card?.querySelector(".like-button span");
    if(like)like.textContent=payload.new.likes_count||0;
  })
- .subscribe();
- db.channel("beyond-auth").on("system","*",(payload)=>{}).subscribe();
-}
+ .subscribe((status)=>{
+   if(status==="CHANNEL_ERROR"||status==="TIMED_OUT"){
+     beyondRealtimeChannel=null;
+   }
+ })}
 function showFeedLoading(){
  const feed=document.getElementById("feed"); if(!feed||document.getElementById("feedLoading"))return;
  const el=document.createElement("div");el.id="feedLoading";el.className="feed-loading";
