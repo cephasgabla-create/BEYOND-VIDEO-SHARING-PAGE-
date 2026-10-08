@@ -1318,3 +1318,53 @@ revoke all on function public.get_beyond_privacy_settings() from public;
 revoke all on function public.update_beyond_privacy_settings(boolean,boolean,boolean,boolean,boolean,boolean) from public;
 grant execute on function public.get_beyond_privacy_settings() to authenticated;
 grant execute on function public.update_beyond_privacy_settings(boolean,boolean,boolean,boolean,boolean,boolean) to authenticated;
+
+
+-- Beyond blocked users and safety controls.
+create table if not exists public.blocked_users (
+  blocker_id uuid not null references auth.users(id) on delete cascade,
+  blocked_id uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (blocker_id, blocked_id),
+  check (blocker_id <> blocked_id)
+);
+alter table public.blocked_users enable row level security;
+drop policy if exists "users read their blocks" on public.blocked_users;
+create policy "users read their blocks" on public.blocked_users for select to authenticated using (blocker_id=auth.uid());
+drop policy if exists "users create their blocks" on public.blocked_users;
+create policy "users create their blocks" on public.blocked_users for insert to authenticated with check (blocker_id=auth.uid());
+drop policy if exists "users remove their blocks" on public.blocked_users;
+create policy "users remove their blocks" on public.blocked_users for delete to authenticated using (blocker_id=auth.uid());
+create index if not exists blocked_users_blocked_idx on public.blocked_users(blocked_id);
+create or replace function public.get_beyond_blocked_users()
+returns table(blocked_id uuid, username text, display_name text, avatar_url text, blocked_at timestamptz)
+language sql security definer set search_path=public as $$
+ select b.blocked_id,p.username,p.display_name,p.avatar_url,b.created_at
+ from public.blocked_users b left join public.profiles p on p.id=b.blocked_id
+ where b.blocker_id=auth.uid() order by b.created_at desc;
+$$;
+create or replace function public.is_beyond_blocked(target_user_id uuid)
+returns boolean language sql security definer set search_path=public as $$
+ select exists(select 1 from public.blocked_users where blocker_id=auth.uid() and blocked_id=target_user_id);
+$$;
+create or replace function public.set_beyond_block_user(target_user_id uuid, should_block boolean)
+returns boolean language plpgsql security definer set search_path=public as $$
+begin
+ if auth.uid() is null then raise exception 'Authentication required'; end if;
+ if target_user_id is null or target_user_id=auth.uid() then raise exception 'Invalid user'; end if;
+ if should_block then
+   insert into public.blocked_users(blocker_id,blocked_id) values(auth.uid(),target_user_id) on conflict do nothing;
+   delete from public.follows where follower_id=auth.uid() and following_id=target_user_id;
+   delete from public.follows where follower_id=target_user_id and following_id=auth.uid();
+ else
+   delete from public.blocked_users where blocker_id=auth.uid() and blocked_id=target_user_id;
+ end if;
+ return should_block;
+end;
+$$;
+revoke all on function public.get_beyond_blocked_users() from public;
+revoke all on function public.is_beyond_blocked(uuid) from public;
+revoke all on function public.set_beyond_block_user(uuid,boolean) from public;
+grant execute on function public.get_beyond_blocked_users() to authenticated;
+grant execute on function public.is_beyond_blocked(uuid) to authenticated;
+grant execute on function public.set_beyond_block_user(uuid,boolean) to authenticated;
