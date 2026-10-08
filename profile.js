@@ -34,7 +34,7 @@ async function loadProfile(){
     if(error)throw error;
     beyondProfile=profile;
     const name=profile.username||profile.display_name||auth.user.email?.split("@")[0]||"Beyond User";
-    usernameEl.textContent="@"+name;
+    usernameEl.textContent="@"+name;const verification=document.getElementById("emailVerification");if(verification)verification.textContent=auth.user.email_confirmed_at?"Email verified":"Email not verified";
     bioEl.textContent=profile.bio||"Welcome to my Beyond profile 🚀";
     applyProfileBranding(profile);
     await Promise.all([loadFollowStats(auth.db,auth.user.id),loadLikeCount(auth.db,auth.user.id),loadVideos(auth.db,auth.user.id)]);
