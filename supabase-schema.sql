@@ -1413,28 +1413,135 @@ create trigger beyond_block_comments before insert on public.comments for each r
 drop trigger if exists beyond_block_likes on public.likes;
 create trigger beyond_block_likes before insert on public.likes for each row execute function public.beyond_blocked_interaction_guard();
 
--- Hide blocked accounts and their content from authenticated users.
+-- Final security hardening: server-side visibility, privacy, and block enforcement.
 drop policy if exists "profiles are publicly readable" on public.profiles;
-create policy "profiles are readable with block filtering" on public.profiles for select using (
- auth.uid() is null or id=auth.uid() or not exists(select 1 from public.blocked_users b where (b.blocker_id=auth.uid() and b.blocked_id=id) or (b.blocker_id=id and b.blocked_id=auth.uid()))
+drop policy if exists "profiles are readable with block filtering" on public.profiles;
+create policy "profiles are readable with block filtering" on public.profiles
+for select using (
+  auth.uid() is null
+  or id = auth.uid()
+  or not exists (
+    select 1 from public.blocked_users b
+    where (b.blocker_id=auth.uid() and b.blocked_id=id)
+       or (b.blocker_id=id and b.blocked_id=auth.uid())
+  )
 );
+
 drop policy if exists "videos are readable" on public.videos;
-create policy "videos are readable with block filtering" on public.videos for select using (
- auth.uid() is null or not exists(select 1 from public.blocked_users b where (b.blocker_id=auth.uid() and b.blocked_id=videos.user_id) or (b.blocker_id=videos.user_id and b.blocked_id=auth.uid()))
+drop policy if exists "videos are readable with block filtering" on public.videos;
+create policy "videos are readable with block filtering" on public.videos
+for select using (
+  (
+    user_id = auth.uid()
+    or (
+      status = 'published'
+      and coalesce(visibility,'public') = 'public'
+    )
+    or (
+      status = 'published'
+      and coalesce(visibility,'public') = 'followers'
+      and auth.uid() is not null
+      and exists (
+        select 1 from public.follows f
+        where f.follower_id=auth.uid() and f.following_id=videos.user_id
+      )
+    )
+  )
+  and not exists (
+    select 1 from public.blocked_users b
+    where (b.blocker_id=auth.uid() and b.blocked_id=videos.user_id)
+       or (b.blocker_id=videos.user_id and b.blocked_id=auth.uid())
+  )
 );
+
 drop policy if exists "comments are readable" on public.comments;
-create policy "comments are readable with block filtering" on public.comments for select using (
- auth.uid() is null or not exists(select 1 from public.blocked_users b where (b.blocker_id=auth.uid() and b.blocked_id=comments.user_id) or (b.blocker_id=comments.user_id and b.blocked_id=auth.uid()))
+drop policy if exists "comments are readable with block filtering" on public.comments;
+create policy "comments are readable with block filtering" on public.comments
+for select using (
+  hidden_by_creator = false
+  and exists (
+    select 1 from public.videos v
+    where v.id=comments.video_id
+      and v.status='published'
+  )
+  and not exists (
+    select 1 from public.blocked_users b
+    where (b.blocker_id=auth.uid() and b.blocked_id=comments.user_id)
+       or (b.blocker_id=comments.user_id and b.blocked_id=auth.uid())
+  )
 );
-drop policy if exists "likes are readable" on public.likes;
-create policy "likes are readable with block filtering" on public.likes for select using (
- auth.uid() is null or not exists(select 1 from public.blocked_users b where (b.blocker_id=auth.uid() and b.blocked_id=(select v.user_id from public.videos v where v.id=likes.video_id)) or (b.blocker_id=(select v.user_id from public.videos v where v.id=likes.video_id) and b.blocked_id=auth.uid()))
+
+drop policy if exists "video owners can hide comments" on public.comments;
+drop policy if exists "video owners can delete comments" on public.comments;
+
+create or replace function public.hide_beyond_comment(comment_id bigint, should_hide boolean)
+returns boolean
+language plpgsql
+security definer
+set search_path=public
+as $$
+begin
+  if auth.uid() is null then raise exception 'Authentication required'; end if;
+  update public.comments c
+  set hidden_by_creator=coalesce(should_hide,false)
+  where c.id=hide_beyond_comment.comment_id
+    and exists (
+      select 1 from public.videos v
+      where v.id=c.video_id and v.user_id=auth.uid()
+    );
+  return found;
+end;
+$$;
+revoke all on function public.hide_beyond_comment(bigint,boolean) from public;
+grant execute on function public.hide_beyond_comment(bigint,boolean) to authenticated;
+
+-- Live messages/reactions must belong to a currently active room.
+create or replace function public.guard_beyond_live_interaction()
+returns trigger
+language plpgsql
+security definer
+set search_path=public
+as $$
+begin
+  if not exists (
+    select 1 from public.live_rooms r
+    where r.id=new.room_id and r.active=true
+  ) then
+    raise exception 'This live room is not active.';
+  end if;
+  if new.user_id <> auth.uid() then
+    raise exception 'User identity does not match the authenticated account.';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists beyond_guard_live_messages on public.live_messages;
+create trigger beyond_guard_live_messages
+before insert on public.live_messages
+for each row execute function public.guard_beyond_live_interaction();
+
+drop trigger if exists beyond_guard_live_reactions on public.live_reactions;
+create trigger beyond_guard_live_reactions
+before insert on public.live_reactions
+for each row execute function public.guard_beyond_live_interaction();
+
+drop policy if exists "live messages are readable" on public.live_messages;
+create policy "live messages are readable" on public.live_messages
+for select using (
+  exists (select 1 from public.live_rooms r where r.id=live_messages.room_id and r.active=true)
 );
-drop policy if exists "follows are readable" on public.follows;
-create policy "follows are readable with block filtering" on public.follows for select using (
- auth.uid() is null or (not exists(select 1 from public.blocked_users b where (b.blocker_id=auth.uid() and b.blocked_id=follows.follower_id) or (b.blocker_id=follows.follower_id and b.blocked_id=auth.uid())) and not exists(select 1 from public.blocked_users b where (b.blocker_id=auth.uid() and b.blocked_id=follows.following_id) or (b.blocker_id=follows.following_id and b.blocked_id=auth.uid())))
+
+drop policy if exists "live reactions are readable" on public.live_reactions;
+create policy "live reactions are readable" on public.live_reactions
+for select using (
+  exists (select 1 from public.live_rooms r where r.id=live_reactions.room_id and r.active=true)
 );
-drop policy if exists "users read their messages" on public.messages;
-create policy "users read their unblocked messages" on public.messages for select to authenticated using (
- (sender_id=auth.uid() or receiver_id=auth.uid()) and not exists(select 1 from public.blocked_users b where (b.blocker_id=auth.uid() and b.blocked_id=case when sender_id=auth.uid() then receiver_id else sender_id end) or (b.blocker_id=case when sender_id=auth.uid() then receiver_id else sender_id end and b.blocked_id=auth.uid()))
-);
+
+-- Restrict live-room updates to host-owned metadata rather than arbitrary counters.
+drop policy if exists "hosts update live rooms" on public.live_rooms;
+create policy "hosts update live rooms" on public.live_rooms
+for update to authenticated
+using (host_id=auth.uid())
+with check (host_id=auth.uid());
+
