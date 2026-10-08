@@ -4,7 +4,133 @@ document.addEventListener("DOMContentLoaded",()=>{loadBeyondVideos();loadSocialP
 
 function openDatabase(){return new Promise((resolve,reject)=>{const request=indexedDB.open("BeyondDatabase",4);request.onupgradeneeded=e=>{const db=e.target.result;if(!db.objectStoreNames.contains("videos"))db.createObjectStore("videos",{keyPath:"id",autoIncrement:true});if(!db.objectStoreNames.contains("comments"))db.createObjectStore("comments",{keyPath:"id",autoIncrement:true});if(!db.objectStoreNames.contains("likes"))db.createObjectStore("likes",{keyPath:"key"});if(!db.objectStoreNames.contains("notifications"))db.createObjectStore("notifications",{keyPath:"id",autoIncrement:true});if(!db.objectStoreNames.contains("socialPosts"))db.createObjectStore("socialPosts",{keyPath:"id",autoIncrement:true})};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)})}
 
-async function loadBeyondVideos(){try{const db=await openDatabase();const req=db.transaction("videos","readonly").objectStore("videos").getAll();req.onsuccess=()=>{req.result.reverse().forEach(createVideoCard);activateVideoObserver();updateAllFollowButtons()}}catch(e){console.error(e)}}
+async function loadBeyondVideos(){
+  const feed=document.getElementById("feed");
+  if(!feed)return;
+
+  try{
+    if(typeof initBeyondDatabase==="function" && typeof getCurrentBeyondUser==="function"){
+      const supabaseDB=initBeyondDatabase();
+      if(supabaseDB){
+        const {data:{user}}=await supabaseDB.auth.getUser();
+        if(user){
+          const {data:remoteVideos,error}=await supabaseDB
+            .from("videos")
+            .select("id,user_id,video_url,caption,hashtags,status,views_count,likes_count,created_at,profiles(username,display_name,avatar_url)")
+            .eq("status","published")
+            .order("created_at",{ascending:false});
+
+          if(error)throw error;
+
+          remoteVideos.forEach(video=>{
+            createRemoteVideoCard(video);
+          });
+          activateVideoObserver();
+          updateAllFollowButtons();
+          return;
+        }
+      }
+    }
+  }catch(e){
+    console.warn("Beyond Supabase feed unavailable; using local videos:",e);
+  }
+
+  try{
+    const db=await openDatabase();
+    const req=db.transaction("videos","readonly").objectStore("videos").getAll();
+    req.onsuccess=()=>{
+      req.result.reverse().forEach(createVideoCard);
+      activateVideoObserver();
+      updateAllFollowButtons();
+    };
+  }catch(e){console.error(e)}
+}
+
+function createRemoteVideoCard(post){
+  const username=post.profiles?.username||"BeyondCreator";
+  const feed=document.getElementById("feed");
+  if(!feed)return;
+  const section=document.createElement("section");
+  section.className="video-card";
+  section.dataset.creator=username;
+  section.dataset.postId=post.id;
+
+  const video=document.createElement("video");
+  video.className="video";
+  video.src=post.video_url;
+  video.loop=true;
+  video.muted=true;
+  video.playsInline=true;
+  video.preload="metadata";
+
+  const info=document.createElement("div");
+  info.className="video-info";
+  const row=document.createElement("div");
+  row.className="creator-row";
+  const name=document.createElement("h3");
+  name.textContent="@"+username;
+  const follow=document.createElement("button");
+  follow.className="follow-button";
+  follow.onclick=()=>toggleFollow(username,follow);
+  row.append(name,follow);
+  updateFollowButton(username,follow);
+
+  const caption=document.createElement("p");
+  caption.textContent=post.caption||"";
+  const tags=document.createElement("p");
+  tags.textContent=post.hashtags||"";
+  info.append(row,caption,tags);
+
+  const actions=document.createElement("div");
+  actions.className="video-actions";
+  actions.innerHTML='<button class="like-button">❤️ <span>0</span></button><button class="comment-button">💬 <span>0</span></button><button onclick="shareVideo()">↗️ <span>Share</span></button><button onclick="openProfile()">👤 <span>Profile</span></button>';
+  actions.children[0].onclick=()=>likeRemoteVideo(actions.children[0],post.id);
+  actions.children[1].onclick=()=>commentVideo(post.id);
+
+  section.append(video,info,actions);
+  feed.appendChild(section);
+  loadRemoteLikeState(post.id,actions.children[0]);
+  loadRemoteCommentCount(post.id,actions.children[1]);
+}
+
+async function likeRemoteVideo(button,videoId){
+  const db=initBeyondDatabase();
+  const user=await getCurrentBeyondUser();
+  if(!db||!user){alert("Please log in to like videos.");return;}
+  try{
+    const {data:existing}=await db.from("likes").select("video_id").eq("video_id",videoId).eq("user_id",user.id).maybeSingle();
+    if(existing){
+      await db.from("likes").delete().eq("video_id",videoId).eq("user_id",user.id);
+    }else{
+      await db.from("likes").insert({video_id:videoId,user_id:user.id});
+    }
+    await loadRemoteLikeState(videoId,button);
+  }catch(error){console.error(error);alert("Could not update the like right now.")}
+}
+
+async function loadRemoteLikeState(videoId,button){
+  try{
+    const db=initBeyondDatabase();
+    if(!db)return;
+    const user=await getCurrentBeyondUser();
+    const {data,count,error}=await db.from("likes").select("user_id",{count:"exact"}).eq("video_id",videoId);
+    if(error)throw error;
+    button.querySelector("span").textContent=count||0;
+    const liked=!!user&&data.some(row=>row.user_id===user.id);
+    button.classList.toggle("liked",liked);
+    button.style.color=liked?"#ff2d55":"white";
+  }catch(error){console.warn("Beyond remote like state unavailable:",error)}
+}
+
+async function loadRemoteCommentCount(videoId,button){
+  try{
+    const db=initBeyondDatabase();
+    if(!db)return;
+    const {count,error}=await db.from("comments").select("id",{count:"exact",head:true}).eq("video_id",videoId);
+    if(error)throw error;
+    button.querySelector("span").textContent=count||0;
+  }catch(error){console.warn("Beyond remote comment count unavailable:",error)}
+}
 
 function createVideoCard(post){
  const feed=document.getElementById("feed"),section=document.createElement("section");
