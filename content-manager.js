@@ -204,6 +204,60 @@ function setupRealtime(db,userId){
     .on("postgres_changes",{event:"*",schema:"public",table:"comments"},()=>loadContent())
     .subscribe();
 }
+function extractStoragePath(videoUrl){
+  if(!videoUrl)return null;
+  const marker="/storage/v1/object/public/videos/";
+  const index=videoUrl.indexOf(marker);
+  return index>=0?decodeURIComponent(videoUrl.slice(index+marker.length)):null;
+}
+async function toggleStatus(id){
+  const v=findContentItem(id);if(!v)return;
+  const status=v.status==="draft"?"published":"draft";
+  try{
+    if(usingSupabase){
+      const db=getSupabase();
+      const {error}=await db.from("videos").update({status}).eq("id",id);
+      if(error)throw error;
+    }else{
+      v.status=status;
+      const db=await openDB();
+      await new Promise((resolve,reject)=>{
+        const tx=db.transaction("videos","readwrite");
+        tx.objectStore("videos").put(v);
+        tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
+      });
+    }
+    await loadContent();
+  }catch(e){alert("Could not change video status: "+e.message)}
+}
+async function deleteVideo(id){
+  const v=findContentItem(id);if(!v)return;
+  if(!confirm("Delete this video? This cannot be undone."))return;
+  try{
+    if(usingSupabase){
+      const db=getSupabase();
+      const {error}=await db.from("videos").delete().eq("id",id);
+      if(error)throw error;
+      const path=extractStoragePath(v.videoUrl);
+      if(path){
+        const {error:storageError}=await db.storage.from("videos").remove([path]);
+        if(storageError)console.warn("Video record deleted, but storage cleanup failed:",storageError);
+      }
+    }else{
+      const db=await openDB();
+      await new Promise((resolve,reject)=>{
+        const tx=db.transaction("videos","readwrite");
+        tx.objectStore("videos").delete(id);
+        tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
+      });
+      const objectUrl=localObjectUrls.get(String(id));
+      if(objectUrl){URL.revokeObjectURL(objectUrl);localObjectUrls.delete(String(id));}
+    }
+    selectedIds.delete(String(id));
+    await loadContent();
+  }catch(e){alert("Could not delete video: "+e.message)}
+}
+
 function findContentItem(id){return contentItems.find(v=>String(v.id)===String(id))}
 function openEditor(id){
   const v=findContentItem(id);if(!v)return;
