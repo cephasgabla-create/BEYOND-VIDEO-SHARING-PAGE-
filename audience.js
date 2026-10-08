@@ -26,99 +26,89 @@ function dateLabel(value){
 }
 
 async function initAudience(){
-  followerHistory=readArray("beyondFollowerHistory");
-  followingActivity=readArray("beyondFollowingActivity");
-
   try{
     const client=window.beyondDB||(typeof initBeyondDatabase==="function"?initBeyondDatabase():null);
-    if(client){
-      const {data:{user}}=await client.auth.getUser();
-      if(user){
-        const [followersResult,followingResult,eventsResult]=await Promise.all([
-          client.from("follows").select("follower_id,created_at").eq("following_id",user.id).order("created_at",{ascending:true}),
-          client.from("follows").select("following_id,created_at,profiles(username,display_name)").eq("follower_id",user.id).order("created_at",{ascending:false}).limit(20),
-          client.from("follows").select("follower_id,following_id,created_at").or("following_id.eq."+user.id+",follower_id.eq."+user.id).order("created_at",{ascending:false}).limit(100)
-        ]);
-        if(followersResult.error)throw followersResult.error;
-        if(followingResult.error)throw followingResult.error;
-        if(eventsResult.error)throw eventsResult.error;
+    if(!client){location.href="login.html";return;}
+    const {data:{user}}=await client.auth.getUser();
+    if(!user){location.href="login.html";return;}
 
-        const followers=followersResult.data||[];
-        const following=followingResult.data||[];
-        const events=eventsResult.data||[];
-        const currentFollowers=followers.length;
-        const currentFollowing=following.length;
+    const [followersResult,followingResult,eventsResult]=await Promise.all([
+      client.from("follows").select("follower_id,created_at").eq("following_id",user.id).order("created_at",{ascending:true}),
+      client.from("follows").select("following_id,created_at,profiles(username,display_name)").eq("follower_id",user.id).order("created_at",{ascending:false}).limit(20),
+      client.from("follower_events").select("follower_id,event_type,created_at").eq("creator_id",user.id).order("created_at",{ascending:true}).limit(5000)
+    ]);
+    if(followersResult.error)throw followersResult.error;
+    if(followingResult.error)throw followingResult.error;
+    if(eventsResult.error)throw eventsResult.error;
 
-        const dayMap=new Map();
-        followers.forEach(row=>{
-          const day=String(row.created_at||"").slice(0,10);
-          if(day)dayMap.set(day,(dayMap.get(day)||0)+1);
-        });
-        let running=0;
-        const growthRows=[...dayMap.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([date,gained])=>{
-          running+=gained;
-          return {date,followers:running,newFollowers:gained,lostFollowers:0};
-        });
-        followerHistory=growthRows.slice(-30);
+    const followers=followersResult.data||[];
+    const following=followingResult.data||[];
+    const events=eventsResult.data||[];
+    const currentFollowers=followers.length;
+    const currentFollowing=following.length;
 
-        followingActivity=following.map(row=>({
-          username:row.profiles?.username||row.profiles?.display_name||"Creator",
-          action:"Following",
-          createdAt:row.created_at
-        }));
+    const dayMap=new Map();
+    events.forEach(row=>{
+      const day=String(row.created_at||"").slice(0,10);
+      if(!day)return;
+      const item=dayMap.get(day)||{newFollowers:0,lostFollowers:0};
+      if(row.event_type==="follow")item.newFollowers++;
+      if(row.event_type==="unfollow")item.lostFollowers++;
+      dayMap.set(day,item);
+    });
 
-        const latestDay=growthRows[growthRows.length-1];
-        const previousDay=growthRows[growthRows.length-2];
-        const newFollowers=latestDay?latestDay.newFollowers:0;
-        const net=newFollowers;
+    let running=0;
+    const growthRows=[...dayMap.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([date,item])=>{
+      running+=item.newFollowers-item.lostFollowers;
+      return {date,followers:Math.max(0,running),newFollowers:item.newFollowers,lostFollowers:item.lostFollowers};
+    });
 
-        document.getElementById("followers").textContent=format(currentFollowers);
-        document.getElementById("following").textContent=format(currentFollowing);
-        document.getElementById("newFollowers").textContent=format(newFollowers);
-        document.getElementById("netGrowth").textContent=(net>0?"+":"")+format(net);
-        document.getElementById("followerChange").textContent=growthRows.length?"Live Supabase follower data":"No followers yet";
-
-        const activeUsers=new Set(events.map(item=>item.follower_id===user.id?item.following_id:item.follower_id)).size;
-        const previousFollowers=previousDay?previousDay.followers:Math.max(currentFollowers-newFollowers,0);
-        const growthRate=previousFollowers?((net/previousFollowers)*100):0;
-        const ratio=currentFollowing?currentFollowers/currentFollowing:0;
-
-        document.getElementById("activeAudience").textContent=format(activeUsers);
-        document.getElementById("growthRate").textContent=growthRate.toFixed(1)+"%";
-        document.getElementById("ratio").textContent=currentFollowing?ratio.toFixed(1):"0";
-        document.getElementById("source").textContent=activeUsers?"Supabase follow activity":"No activity yet";
-
-        renderActivity();
-        renderHistory();
-        drawGrowthChart();
-        subscribeAudienceRealtime(client,user.id);
-        return;
-      }
+    // If historical events were added after the current follows already existed,
+    // anchor the recorded series to today's real follower total.
+    if(growthRows.length){
+      const offset=currentFollowers-growthRows[growthRows.length-1].followers;
+      growthRows.forEach(row=>row.followers=Math.max(0,row.followers+offset));
     }
-  }catch(error){
-    console.warn("Beyond Supabase audience data unavailable:",error);
-  }
+    followerHistory=growthRows.slice(-90);
 
-  const followers=number(localStorage.getItem("beyondFollowers"));
-  const following=number(localStorage.getItem("beyondFollowing"));
-  const latest=followerHistory[followerHistory.length-1]||{};
-  const newFollowers=number(latest.newFollowers??latest.gained);
-  const lostFollowers=number(latest.lostFollowers??latest.lost);
-  const net=newFollowers-lostFollowers;
-  document.getElementById("followers").textContent=format(followers);
-  document.getElementById("following").textContent=format(following);
-  document.getElementById("newFollowers").textContent=format(newFollowers);
-  document.getElementById("netGrowth").textContent=(net>0?"+":"")+format(net);
-  document.getElementById("followerChange").textContent=followerHistory.length?"Growth data recorded":"No growth data yet";
-  const activeUsers=new Set(followingActivity.map(item=>item.username||item.user||item.userId).filter(Boolean)).size;
-  const previousFollowers=Math.max(followers-net,0);
-  const growthRate=previousFollowers?((net/previousFollowers)*100):0;
-  const ratio=following?followers/following:0;
-  document.getElementById("activeAudience").textContent=format(activeUsers);
-  document.getElementById("growthRate").textContent=growthRate.toFixed(1)+"%";
-  document.getElementById("ratio").textContent=following?ratio.toFixed(1):"0";
-  document.getElementById("source").textContent=activeUsers?"Following activity":"Not available";
-  renderActivity();renderHistory();drawGrowthChart();
+    followingActivity=following.map(row=>({
+      username:row.profiles?.username||row.profiles?.display_name||"Creator",
+      action:"Following",
+      createdAt:row.created_at
+    }));
+
+    const latest=growthRows[growthRows.length-1]||{newFollowers:0,lostFollowers:0};
+    const previous=growthRows[growthRows.length-2];
+    const newFollowers=latest.newFollowers||0;
+    const lostFollowers=latest.lostFollowers||0;
+    const net=newFollowers-lostFollowers;
+    const previousFollowers=previous?previous.followers:Math.max(currentFollowers-net,0);
+    const growthRate=previousFollowers?((net/previousFollowers)*100):0;
+
+    document.getElementById("followers").textContent=format(currentFollowers);
+    document.getElementById("following").textContent=format(currentFollowing);
+    document.getElementById("newFollowers").textContent=format(newFollowers);
+    document.getElementById("netGrowth").textContent=(net>0?"+":"")+format(net);
+    document.getElementById("followerChange").textContent="Live Supabase follower data";
+
+    const activeUsers=new Set(events.slice(-100).map(item=>item.follower_id)).size;
+    const ratio=currentFollowing?currentFollowers/currentFollowing:0;
+    document.getElementById("activeAudience").textContent=format(activeUsers);
+    document.getElementById("growthRate").textContent=growthRate.toFixed(1)+"%";
+    document.getElementById("ratio").textContent=currentFollowing?ratio.toFixed(1):"0";
+    document.getElementById("source").textContent=activeUsers?"Supabase follower events":"No activity yet";
+
+    renderActivity();
+    renderHistory();
+    drawGrowthChart();
+    subscribeAudienceRealtime(client,user.id);
+  }catch(error){
+    console.error("Beyond Audience Supabase error:",error);
+    const box=document.getElementById("history");
+    if(box)box.innerHTML='<p class="empty">Audience data could not be loaded. Apply the latest Supabase schema, then refresh.</p>';
+    const activity=document.getElementById("activity");
+    if(activity)activity.innerHTML='<p class="empty">Supabase follower activity is unavailable.</p>';
+  }
 }
 function renderActivity(){
   const box=document.getElementById("activity");
