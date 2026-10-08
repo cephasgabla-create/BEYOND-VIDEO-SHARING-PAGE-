@@ -305,3 +305,10 @@ alter table public.creator_settings enable row level security;
 create policy "creator_settings_owner_select" on public.creator_settings for select to authenticated using (user_id = auth.uid());
 create policy "creator_settings_owner_insert" on public.creator_settings for insert to authenticated with check (user_id = auth.uid());
 create policy "creator_settings_owner_update" on public.creator_settings for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- Dashboard customization: one private settings document per creator.
+create table if not exists public.dashboard_customizations (user_id uuid primary key references auth.users(id) on delete cascade, settings jsonb not null default '{}'::jsonb, updated_at timestamptz not null default now());
+alter table public.dashboard_customizations enable row level security;
+create policy "dashboard_customizations_owner_select" on public.dashboard_customizations for select to authenticated using (user_id = auth.uid());
+create policy "dashboard_customizations_owner_insert" on public.dashboard_customizations for insert to authenticated with check (user_id = auth.uid());
+create policy "dashboard_customizations_owner_update" on public.dashboard_customizations for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
