@@ -7,11 +7,22 @@ function currentUser(){
   return localStorage.getItem("beyondUsername")||"BeyondCreator";
 }
 
+function applyCreatorBranding(){
+  const avatarUrl=localStorage.getItem("beyondProfileAvatar")||"";
+  const bannerUrl=localStorage.getItem("beyondProfileBanner")||"";
+  const accent=localStorage.getItem("beyondProfileAccent")||"#ff2d55";
+  document.documentElement.style.setProperty("--brand-accent",accent);
+  const info=document.querySelector(".profile-info");
+  if(info){info.style.setProperty("--profile-banner",bannerUrl?`url("${bannerUrl.replace(/"/g,"%22")}")`:"none");}
+  if(avatarUrl){avatarEl.textContent="";avatarEl.style.backgroundImage=`url("${avatarUrl.replace(/"/g,"%22")}")`;avatarEl.style.backgroundSize="cover";avatarEl.style.backgroundPosition="center";}
+}
+
 async function loadProfile(){
   const u=currentUser();
   usernameEl.textContent="@"+u;
   avatarEl.textContent=u.charAt(0).toUpperCase();
   bioEl.textContent=localStorage.getItem("beyondBio")||"Welcome to my Beyond profile 🚀";
+  applyCreatorBranding();
 
   try{
     if(typeof initBeyondDatabase==="function" && typeof getBeyondOwnProfile==="function"){
@@ -27,7 +38,7 @@ async function loadProfile(){
             bioEl.textContent=profile.bio||"Welcome to my Beyond profile 🚀";
             localStorage.setItem("beyondUsername",name);
             localStorage.setItem("beyondBio",profile.bio||"");
-            if(profile.avatar_url){
+            if(profile.avatar_url && !localStorage.getItem("beyondProfileAvatar")){
               avatarEl.textContent="";
               avatarEl.style.backgroundImage="url('"+profile.avatar_url.replace(/'/g,"\\'")+"')";
               avatarEl.style.backgroundSize="cover";
