@@ -59,7 +59,7 @@ async function openConversation(id){
   if(!id||id===currentUser.id)return;
   currentOtherId=id;
   const p=await loadProfileForUser(id);
-  $("chatHeader").innerHTML="<div><strong>"+esc(profileName(p))+"</strong><span id="chatPresence">○ Offline</span><span id="chatTyping"></span></div>";
+  $("chatHeader").innerHTML="<div><strong>"+esc(profileName(p))+"</strong><span id=\"chatPresence\">○ Offline</span><span id=\"chatTyping\"></span></div>";
   await openChatPresence();
   $("messageInput").disabled=false;$("sendBtn").disabled=false;setStatus("");
   await renderConversation();await markBeyondConversationRead(id);await loadConversations();
