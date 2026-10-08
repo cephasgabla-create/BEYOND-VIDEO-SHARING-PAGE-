@@ -83,6 +83,10 @@ async function getBeyondProfileByUsername(username){
   return data;
 }
 
+async function getBeyondBlockedUserIds(){const db=beyondDB||initBeyondDatabase();const user=await getCurrentBeyondUser();if(!db||!user)return new Set();const {data,error}=await db.rpc("get_beyond_blocked_users");if(error)throw error;return new Set((data||[]).map(x=>x.blocked_id))}
+async function isBeyondUserBlocked(userId){const db=beyondDB||initBeyondDatabase();const user=await getCurrentBeyondUser();if(!db||!user||!userId)return false;const {data,error}=await db.rpc("is_beyond_blocked",{target_user_id:userId});if(error)throw error;return Boolean(data)}
+async function setBeyondUserBlocked(userId,shouldBlock){const db=beyondDB||initBeyondDatabase();const user=await getCurrentBeyondUser();if(!db||!user)throw new Error("Please sign in first.");if(user.id===userId)throw new Error("You cannot block yourself.");const {data,error}=await db.rpc("set_beyond_block_user",{target_user_id:userId,should_block:Boolean(shouldBlock)});if(error)throw error;return Boolean(data)}
+
 async function getBeyondFollowState(targetUserId){
   const db=beyondDB||initBeyondDatabase();
   const user=await getCurrentBeyondUser();
@@ -97,6 +101,9 @@ async function setBeyondFollow(targetUserId,shouldFollow){
   const user=await getCurrentBeyondUser();
   if(!db||!user) throw new Error("Supabase authentication is required for database follows.");
   if(user.id===targetUserId) throw new Error("You cannot follow yourself.");
+  if(await isBeyondUserBlocked(targetUserId)) throw new Error("You cannot follow a blocked account.");
+  const targetBlocksYou=await (async()=>{const d=db||initBeyondDatabase();const {data,error}=await d.from("blocked_users").select("blocker_id").eq("blocker_id",targetUserId).eq("blocked_id",user.id).maybeSingle();if(error)throw error;return !!data})();
+  if(targetBlocksYou) throw new Error("This account has blocked you.");
   if(shouldFollow){
     const {error}=await db.from("follows").upsert({follower_id:user.id,following_id:targetUserId},{onConflict:"follower_id,following_id"});
     if(error) throw error;
