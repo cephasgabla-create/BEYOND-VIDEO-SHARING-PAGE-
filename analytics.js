@@ -7,55 +7,43 @@ async function loadAnalytics(){
   analyticsLoading=true;
   try{
     const client=window.beyondDB||(typeof initBeyondDatabase==="function"?initBeyondDatabase():null);
-    if(client){
-      const {data:{user}}=await client.auth.getUser();
-      if(user){
-        const {data:rows,error}=await client.from("videos").select("*").eq("user_id",user.id).order("created_at",{ascending:false});
-        if(error)throw error;
-        const ids=(rows||[]).map(v=>v.id);
-        let likeRows=[],commentRows=[];
-        if(ids.length){
-          const [lr,cr]=await Promise.all([
-            client.from("likes").select("video_id").in("video_id",ids),
-            client.from("comments").select("video_id").in("video_id",ids)
-          ]);
-          if(lr.error)throw lr.error;
-          if(cr.error)throw cr.error;
-          likeRows=lr.data||[];
-          commentRows=cr.data||[];
-        }
-        videos=(rows||[]).map(v=>({
-          ...v,
-          likeCount:likeRows.filter(x=>x.video_id===v.id).length,
-          commentCount:commentRows.filter(x=>x.video_id===v.id).length,
-          views:Number(v.views_count||0),
-          createdAt:v.created_at
-        }));
-        const followerResult=await client.from("follows").select("follower_id",{count:"exact",head:true}).eq("following_id",user.id);
-        if(followerResult.error)throw followerResult.error;
-        window.beyondAnalyticsFollowers=followerResult.count||0;
-        render();
-        if(analyticsChannel){try{client.removeChannel(analyticsChannel)}catch(e){console.warn("Beyond analytics realtime cleanup:",e)}analyticsChannel=null;}
-        const channel=client.channel("beyond-analytics-"+user.id)
-          .on("postgres_changes",{event:"*",schema:"public",table:"videos",filter:"user_id=eq."+user.id},()=>scheduleAnalyticsReload())
-          .on("postgres_changes",{event:"*",schema:"public",table:"follows",filter:"following_id=eq."+user.id},()=>scheduleAnalyticsReload())
-          .on("postgres_changes",{event:"*",schema:"public",table:"likes"},()=>scheduleAnalyticsReload())
-          .on("postgres_changes",{event:"*",schema:"public",table:"comments"},()=>scheduleAnalyticsReload());
-        channel.subscribe(status=>{
-          if(status==="SUBSCRIBED"){analyticsChannel=channel;return;}
-          if(status==="CHANNEL_ERROR"||status==="TIMED_OUT"||status==="CLOSED"){
-            if(analyticsChannel===channel)analyticsChannel=null;
-            try{client.removeChannel(channel)}catch(e){console.warn("Beyond analytics realtime cleanup:",e)}
-            if(document.visibilityState!=="hidden")setTimeout(()=>loadAnalytics(),5000);
-          }
-        });
-        analyticsLoading=false;
-        return;
-      }
+    const user=client?await getCurrentBeyondUser():null;
+    if(!client||!user){location.href="login.html";return}
+    const {data:rows,error}=await client.from("videos").select("id,user_id,caption,status,views_count,likes_count,created_at").eq("user_id",user.id).order("created_at",{ascending:false});
+    if(error)throw error;
+    const ids=(rows||[]).map(v=>v.id);
+    let likeRows=[],commentRows=[];
+    if(ids.length){
+      const [lr,cr]=await Promise.all([
+        client.from("likes").select("video_id").in("video_id",ids),
+        client.from("comments").select("video_id").in("video_id",ids)
+      ]);
+      if(lr.error)throw lr.error;if(cr.error)throw cr.error;
+      likeRows=lr.data||[];commentRows=cr.data||[];
     }
-  }catch(error){console.warn("Beyond Supabase analytics unavailable:",error)}
-  const d=await db();const u=localStorage.getItem("beyondUsername");const allVideos=await all(d,"videos");videos=allVideos.filter(v=>!u||v.username===u);likes=await all(d,"likes");comments=await all(d,"comments");videos.forEach(v=>{v.likeCount=likes.filter(x=>x.postId===v.id).length;v.commentCount=comments.filter(x=>x.postId===v.id).length;v.views=Number(localStorage.getItem("beyondViews_"+v.id)||0)});render();
-  analyticsLoading=false;
+    videos=(rows||[]).map(v=>({
+      ...v,likeCount:likeRows.filter(x=>x.video_id===v.id).length,
+      commentCount:commentRows.filter(x=>x.video_id===v.id).length,
+      views:Number(v.views_count||0),createdAt:v.created_at
+    }));
+    const followerResult=await client.from("follows").select("follower_id",{count:"exact",head:true}).eq("following_id",user.id);
+    if(followerResult.error)throw followerResult.error;
+    window.beyondAnalyticsFollowers=followerResult.count||0;
+    render();
+    setupAnalyticsRealtime(client,user.id,ids);
+  }catch(error){
+    console.error("Beyond analytics:",error);
+    const box=document.getElementById("topVideos");if(box)box.innerHTML="<p style='color:#9097a5'>Could not load Supabase analytics.</p>";
+  }finally{analyticsLoading=false}
+}
+function setupAnalyticsRealtime(client,userId,ids){
+  if(analyticsChannel){try{client.removeChannel(analyticsChannel)}catch(e){}analyticsChannel=null}
+  const channel=client.channel("beyond-analytics-"+userId)
+    .on("postgres_changes",{event:"*",schema:"public",table:"videos",filter:"user_id=eq."+userId},()=>scheduleAnalyticsReload())
+    .on("postgres_changes",{event:"*",schema:"public",table:"follows",filter:"following_id=eq."+userId},()=>scheduleAnalyticsReload())
+    .on("postgres_changes",{event:"*",schema:"public",table:"likes"},p=>{if(ids.includes(p.new?.video_id)||ids.includes(p.old?.video_id))scheduleAnalyticsReload()})
+    .on("postgres_changes",{event:"*",schema:"public",table:"comments"},p=>{if(ids.includes(p.new?.video_id)||ids.includes(p.old?.video_id))scheduleAnalyticsReload()});
+  channel.subscribe(status=>{if(status==="SUBSCRIBED")analyticsChannel=channel});
 }
 function scheduleAnalyticsReload(){if(analyticsTimer)return;analyticsTimer=setTimeout(()=>{analyticsTimer=null;loadAnalytics()},500)}
 function compact(n){return n>=1000000?(n/1000000).toFixed(1)+"M":n>=1000?(n/1000).toFixed(1)+"K":String(n)}
