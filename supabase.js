@@ -22,6 +22,8 @@ function initBeyondDatabase(){
   return beyondDB;
 }
 
+async function getBeyondAuthStatus(){const db=beyondDB||initBeyondDatabase();if(!db)return {configured:false,user:null,session:null,error:null};const {data,error}=await db.auth.getSession();return {configured:true,user:data?.session?.user||null,session:data?.session||null,error:error||null}}
+
 async function getCurrentBeyondUser(){
   const db = beyondDB || initBeyondDatabase();
   if(!db) return null;
