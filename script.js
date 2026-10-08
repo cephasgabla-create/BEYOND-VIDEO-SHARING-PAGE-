@@ -188,23 +188,32 @@ function createVideoCard(post){
  loadLikeState(post.id,actions.children[0]);loadCommentCount(post.id,actions.children[1]);
 }
 
-async function likeVideo(button,postId){
- const user=localStorage.getItem("beyondUsername");
- if(!user){alert("Please log in to like videos.");location.href="login.html";return}
- const db=await openDatabase(),key=postId+"_"+user,store=db.transaction("likes","readwrite").objectStore("likes");
- const existing=await new Promise(resolve=>{const r=store.get(key);r.onsuccess=()=>resolve(r.result)});
- if(existing) store.delete(key); else {store.put({key,postId,username:user}); const videoReq=db.transaction("videos","readonly").objectStore("videos").get(postId); videoReq.onsuccess=()=>{const video=videoReq.result;if(video&&video.username!==user){const nt=db.transaction("notifications","readwrite");nt.objectStore("notifications").add({username:video.username,type:"like",actor:user,postId,text:"@"+user+" liked your video",createdAt:new Date().toISOString(),read:false});}}}
- store.transaction.oncomplete=()=>loadLikeState(postId,button);
+async function likeVideo(button,videoId){
+ const db=initBeyondDatabase();const user=await getCurrentBeyondUser();
+ if(!db||!user){location.href="login.html";return}
+ try{
+  const {data:existing,error}=await db.from("likes").select("video_id").eq("user_id",user.id).eq("video_id",videoId).maybeSingle();
+  if(error)throw error;
+  if(existing)await db.from("likes").delete().eq("user_id",user.id).eq("video_id",videoId);
+  else await db.from("likes").insert({user_id:user.id,video_id:videoId});
+  await loadLikeState(videoId,button);
+ }catch(error){console.error(error);alert("Could not update the like.")}
 }
-
-async function loadLikeState(postId,button){
- const db=await openDatabase(),req=db.transaction("likes","readonly").objectStore("likes").getAll();
- req.onsuccess=()=>{const likes=req.result.filter(l=>l.postId===postId),user=localStorage.getItem("beyondUsername"),liked=likes.some(l=>l.username===user);button.querySelector("span").textContent=likes.length;button.classList.toggle("liked",liked);button.style.color=liked?"#ff2d55":"white"};
+async function loadLikeState(videoId,button){
+ const db=initBeyondDatabase();if(!db||!button)return;
+ try{
+  const user=await getCurrentBeyondUser();
+  const {data,count,error}=await db.from("likes").select("user_id",{count:"exact"}).eq("video_id",videoId);
+  if(error)throw error;
+  button.querySelector("span").textContent=String(count||0);
+  const liked=!!user&&(data||[]).some(x=>x.user_id===user.id);
+  button.classList.toggle("liked",liked);button.style.color=liked?"#ff2d55":"white";
+ }catch(error){console.warn("Like state failed",error)}
 }
-
-async function loadCommentCount(postId,button){
- const db=await openDatabase(),req=db.transaction("comments","readonly").objectStore("comments").getAll();
- req.onsuccess=()=>button.querySelector("span").textContent=req.result.filter(c=>c.postId===postId).length;
+async function loadCommentCount(videoId,button){
+ const db=initBeyondDatabase();if(!db||!button)return;
+ const {count,error}=await db.from("comments").select("id",{count:"exact",head:true}).eq("video_id",videoId);
+ if(!error)button.querySelector("span").textContent=String(count||0);
 }
 
 async function createSocialPost(){const user=localStorage.getItem("beyondUsername");const input=document.getElementById("postText");const text=input.value.trim();if(!user){location.href="login.html";return}if(!text)return;const db=await openDatabase();const tx=db.transaction("socialPosts","readwrite");tx.objectStore("socialPosts").add({username:user,text,createdAt:new Date().toISOString()});tx.oncomplete=()=>{input.value="";loadSocialPosts()}}
