@@ -1,6 +1,6 @@
 let currentPostId=null;
 
-document.addEventListener("DOMContentLoaded",()=>{loadBeyondVideos();loadSocialPosts();activateVideoObserver();updateAllFollowButtons();const u=localStorage.getItem("beyondUsername");if(u)document.getElementById("composerAvatar").textContent=u.charAt(0).toUpperCase();if(localStorage.getItem("beyondTheme")==="light")document.body.classList.add("light-theme")});
+document.addEventListener("DOMContentLoaded",()=>{loadBeyondVideos();loadSocialPosts();activateVideoObserver();updateAllFollowButtons();enableBeyondFollowRealtime();const u=localStorage.getItem("beyondUsername");if(u)document.getElementById("composerAvatar").textContent=u.charAt(0).toUpperCase();if(localStorage.getItem("beyondTheme")==="light")document.body.classList.add("light-theme")});
 
 function openDatabase(){return new Promise((resolve,reject)=>{const request=indexedDB.open("BeyondDatabase",4);request.onupgradeneeded=e=>{const db=e.target.result;if(!db.objectStoreNames.contains("videos"))db.createObjectStore("videos",{keyPath:"id",autoIncrement:true});if(!db.objectStoreNames.contains("comments"))db.createObjectStore("comments",{keyPath:"id",autoIncrement:true});if(!db.objectStoreNames.contains("likes"))db.createObjectStore("likes",{keyPath:"key"});if(!db.objectStoreNames.contains("notifications"))db.createObjectStore("notifications",{keyPath:"id",autoIncrement:true});if(!db.objectStoreNames.contains("socialPosts"))db.createObjectStore("socialPosts",{keyPath:"id",autoIncrement:true})};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)})}
 
@@ -211,7 +211,7 @@ async function loadRemoteCommentCount(videoId,button){
   try{
     const db=initBeyondDatabase();
     if(!db)return;
-    const {count,error}=await db.from("comments").select("id",{count:"exact",head:true}).eq("video_id",videoId);
+    const {count,error}=await db.from("comments").select("id",{count:"exact",head:true}).eq("video_id",videoId).eq("hidden_by_creator",false);
     if(error)throw error;
     button.querySelector("span").textContent=count||0;
   }catch(error){console.warn("Beyond remote comment count unavailable:",error)}
@@ -404,7 +404,7 @@ async function loadComments(postId){
  if(!db||!user){location.href="login.html";return}
  if(typeof postId!=="number"){list.innerHTML="<p style='color:#777;text-align:center;padding:30px'>Comments are unavailable for this video.</p>";return}
  try{
-  const {data,error}=await db.from("comments").select("id,user_id,content,created_at,profiles(username,display_name,avatar_url)").eq("video_id",postId).order("created_at",{ascending:true});
+  const {data,error}=await db.from("comments").select("id,user_id,content,created_at,profiles(username,display_name,avatar_url)").eq("video_id",postId).eq("hidden_by_creator",false).order("created_at",{ascending:true});
   if(error)throw error;
   list.innerHTML="";
   if(!data?.length){list.innerHTML="<p style='color:#777;text-align:center;padding:30px'>No comments yet. Be the first!</p>";return}
@@ -439,6 +439,18 @@ function createRemoteComment(comment){
   document.getElementById("commentsList").appendChild(item);
 }
 
+let beyondFollowRealtimeChannel=null;
+function enableBeyondFollowRealtime(){
+ const db=initBeyondDatabase();
+ if(!db||beyondFollowRealtimeChannel)return;
+ beyondFollowRealtimeChannel=db.channel("beyond-follow-state")
+   .on("postgres_changes",{event:"*",schema:"public",table:"follows"},async()=>{
+     try{await updateAllFollowButtons();}catch(error){console.warn("Beyond follow state refresh failed:",error)}
+   })
+   .subscribe(status=>{
+     if(status==="CHANNEL_ERROR"||status==="TIMED_OUT")beyondFollowRealtimeChannel=null;
+   });
+}
 let beyondVideoObserver=null;function activateVideoObserver(){if(!("IntersectionObserver" in window))return;if(!beyondVideoObserver){beyondVideoObserver=new IntersectionObserver(entries=>entries.forEach(entry=>{const video=entry.target;if(entry.isIntersecting){video.play().catch(()=>{});const id=video.closest(".video-card")?.dataset.postId||video.closest(".video-card")?.dataset.creator;if(id){let history=JSON.parse(localStorage.getItem("beyondWatchHistory")||"[]");history=[id,...history.filter(x=>x!==id)].slice(0,50);localStorage.setItem("beyondWatchHistory",JSON.stringify(history))}}else video.pause()}),{threshold:.7})}document.querySelectorAll(".video").forEach(v=>{if(!v.dataset.beyondObserved){beyondVideoObserver.observe(v);v.dataset.beyondObserved="true"}})}
 let beyondDiscoverChannel=null;
 let beyondDiscoverTimer=null;
