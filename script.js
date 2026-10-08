@@ -8,33 +8,38 @@ async function loadBeyondVideos(){
   const feed=document.getElementById("feed");
   if(!feed)return;
 
+  const staticCards=Array.from(feed.querySelectorAll(".video-card"));
+  const loading=document.getElementById("feedLoading");
   try{
-    if(typeof initBeyondDatabase==="function" && typeof getCurrentBeyondUser==="function"){
-      const supabaseDB=initBeyondDatabase();
-      if(supabaseDB){
-        const {data:{user}}=await supabaseDB.auth.getUser();
-        if(user){
-          const {data:remoteVideos,error}=await supabaseDB
-            .from("videos")
-            .select("id,user_id,video_url,caption,hashtags,status,views_count,likes_count,created_at,profiles(username,display_name,avatar_url)")
-            .eq("status","published")
-            .order("created_at",{ascending:false});
+    const db=typeof initBeyondDatabase==="function" ? initBeyondDatabase() : null;
+    if(db){
+      const {data:remoteVideos,error}=await db
+        .from("videos")
+        .select("id,user_id,video_url,caption,hashtags,status,views_count,likes_count,created_at,profiles(username,display_name,avatar_url)")
+        .eq("status","published")
+        .order("created_at",{ascending:false});
 
-          if(error)throw error;
+      if(error)throw error;
 
-          remoteVideos.forEach(video=>{
-            createRemoteVideoCard(video);
-          });
-          activateVideoObserver();
-          updateAllFollowButtons();
-          return;
-        }
+      staticCards.forEach(card=>card.remove());
+      remoteVideos.forEach(video=>createRemoteVideoCard(video));
+      activateVideoObserver();
+      updateAllFollowButtons();
+
+      if(!remoteVideos.length){
+        const empty=document.createElement("div");
+        empty.className="feed-empty";
+        empty.textContent="No published videos yet. Upload the first Beyond video.";
+        feed.appendChild(empty);
       }
+      if(loading)loading.remove();
+      return;
     }
   }catch(e){
     console.warn("Beyond Supabase feed unavailable; using local videos:",e);
   }
 
+  // Safe fallback for development when Supabase credentials are not configured.
   try{
     const db=await openDatabase();
     const req=db.transaction("videos","readonly").objectStore("videos").getAll();
@@ -42,10 +47,13 @@ async function loadBeyondVideos(){
       req.result.reverse().forEach(createVideoCard);
       activateVideoObserver();
       updateAllFollowButtons();
+      if(loading)loading.remove();
     };
-  }catch(e){console.error(e)}
+  }catch(e){
+    console.error("Beyond local feed unavailable:",e);
+    if(loading)loading.remove();
+  }
 }
-
 function createRemoteVideoCard(post){
   const username=post.profiles?.username||"BeyondCreator";
   const feed=document.getElementById("feed");
