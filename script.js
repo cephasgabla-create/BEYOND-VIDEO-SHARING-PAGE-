@@ -121,7 +121,7 @@ async function loadDatabaseFeed(){
       </div>
       <div class="video-actions">
         <button class="like-button" onclick="likeDatabaseVideo(this,${v.id})">❤️ <span>${Number(v.likes_count||0)}</span></button>
-        <button onclick="openComments()">💬 <span>Comment</span></button>
+        <button onclick="commentVideo('db-'+${v.id})">💬 <span>Comment</span></button>
         <button onclick="shareVideo()">↗️ <span>Share</span></button>
         <button onclick="saveVideo(this)">🔖 <span>Save</span></button>
       </div>
