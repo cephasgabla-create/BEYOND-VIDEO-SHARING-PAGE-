@@ -201,8 +201,17 @@ function goHome(){location.href="index.html"}
 function openUpload(){location.href="upload.html"}
 function openSearch(){location.href="search.html"}
 
-function logout(){
-  if(confirm("Log out of Beyond?")){
+async function logout(){
+  if(!confirm("Log out of Beyond?")) return;
+
+  try{
+    if(typeof initBeyondDatabase==="function"){
+      const db=initBeyondDatabase();
+      if(db) await db.auth.signOut();
+    }
+  }catch(error){
+    console.warn("Beyond Supabase sign-out warning:",error);
+  }finally{
     localStorage.removeItem("beyondLoggedIn");
     localStorage.removeItem("beyondUsername");
     localStorage.removeItem("beyondEmail");
