@@ -403,10 +403,10 @@ exception when duplicate_object then null; end $$;
 
 -- Direct messages: only the sender/receiver can read; only the sender can create.
 drop policy if exists "users read their messages" on public.messages;
-do $ begin
+do $$ begin
   create policy "users read their messages" on public.messages for select to authenticated
     using ((sender_id = auth.uid() and deleted_for_sender = false) or (receiver_id = auth.uid() and deleted_for_receiver = false));
-exception when duplicate_object then null; end $;
+exception when duplicate_object then null; end $$;
 do $$ begin
   create policy "users send messages" on public.messages for insert to authenticated
     with check (sender_id = auth.uid());
@@ -1087,19 +1087,19 @@ grant execute on function public.ensure_beyond_profile() to authenticated;
 
 -- Keep profile ownership locked to the authenticated user.
 drop policy if exists "users update their profile" on public.profiles;
-do $ begin
+do $$ begin
   create policy "users update their profile" on public.profiles
     for update to authenticated
     using (id = auth.uid())
     with check (id = auth.uid());
-exception when duplicate_object then null; end $;
+exception when duplicate_object then null; end $$;
 
 drop policy if exists "users insert their profile" on public.profiles;
-do $ begin
+do $$ begin
   create policy "users insert their profile" on public.profiles
     for insert to authenticated
     with check (id = auth.uid());
-exception when duplicate_object then null; end $;
+exception when duplicate_object then null; end $$;
 
 -- Secure direct-message read state with RPCs.
 -- Clients may insert messages only as themselves and read only conversations they belong to.
@@ -1149,11 +1149,11 @@ grant execute on function public.mark_beyond_message_read(bigint) to authenticat
 grant execute on function public.mark_beyond_conversation_read(uuid) to authenticated;
 
 -- Keep message content bounded and non-empty.
-do $ begin
+do $$ begin
   alter table public.messages
     add constraint messages_content_length_check
     check (char_length(btrim(content)) between 1 and 2000);
-exception when duplicate_object then null; end $;
+exception when duplicate_object then null; end $$;
  then
       raise exception 'Invalid username';
     end if;
@@ -1203,19 +1203,19 @@ grant execute on function public.ensure_beyond_profile() to authenticated;
 
 -- Keep profile ownership locked to the authenticated user.
 drop policy if exists "users update their profile" on public.profiles;
-do $ begin
+do $$ begin
   create policy "users update their profile" on public.profiles
     for update to authenticated
     using (id = auth.uid())
     with check (id = auth.uid());
-exception when duplicate_object then null; end $;
+exception when duplicate_object then null; end $$;
 
 drop policy if exists "users insert their profile" on public.profiles;
-do $ begin
+do $$ begin
   create policy "users insert their profile" on public.profiles
     for insert to authenticated
     with check (id = auth.uid());
-exception when duplicate_object then null; end $;
+exception when duplicate_object then null; end $$;
 
 -- Secure direct-message read state with RPCs.
 -- Clients may insert messages only as themselves and read only conversations they belong to.
@@ -1265,11 +1265,11 @@ grant execute on function public.mark_beyond_message_read(bigint) to authenticat
 grant execute on function public.mark_beyond_conversation_read(uuid) to authenticated;
 
 -- Keep message content bounded and non-empty.
-do $ begin
+do $$ begin
   alter table public.messages
     add constraint messages_content_length_check
     check (char_length(btrim(content)) between 1 and 2000);
-exception when duplicate_object then null; end $;
+exception when duplicate_object then null; end $$;
 
 
 -- Beyond Messages deletion controls
@@ -1545,3 +1545,11 @@ for update to authenticated
 using (host_id=auth.uid())
 with check (host_id=auth.uid());
 
+
+-- Final least-privilege hardening for live viewer accounting.
+revoke execute on function public.change_live_viewer_count(bigint,integer) from anon;
+grant execute on function public.change_live_viewer_count(bigint,integer) to authenticated;
+
+-- Prevent unauthenticated clients from invoking the controlled video-view incrementer
+-- if the application later moves view counting behind authenticated sessions.
+-- Keep anonymous execution for now because public video viewing is supported.
