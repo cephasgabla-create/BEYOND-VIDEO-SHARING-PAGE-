@@ -26,7 +26,9 @@ async function loadLikeCount(){
     const likeReq=db.transaction("likes","readonly").objectStore("likes").getAll();
     likeReq.onsuccess=()=>likesEl.textContent=likeReq.result.filter(l=>ids.includes(l.postId)).length;
   };
-}\n\nfunction loadFollowingCount(){
+}
+
+function loadFollowingCount(){
   try{
     followingEl.textContent=JSON.parse(localStorage.getItem("beyondFollowing")||"[]").length;
   }catch{
