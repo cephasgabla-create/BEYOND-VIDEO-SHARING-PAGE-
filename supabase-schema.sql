@@ -91,6 +91,8 @@ alter table videos add column if not exists hashtags text default '';
 alter table videos add column if not exists status text default 'published';
 alter table videos add column if not exists views_count bigint default 0;
 alter table videos add column if not exists likes_count integer default 0;
+alter table videos add column if not exists visibility text default 'public';
+alter table videos add column if not exists comments_enabled boolean default true;
 
 create index if not exists messages_receiver_idx on messages(receiver_id, created_at desc);
 create index if not exists live_messages_room_idx on live_messages(room_id, created_at);
