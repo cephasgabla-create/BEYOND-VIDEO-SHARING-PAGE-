@@ -18,6 +18,8 @@ document.addEventListener("DOMContentLoaded",()=>{
   document.getElementById("bulkDelete")?.addEventListener("click",bulkDelete);
   document.getElementById("prevPage")?.addEventListener("click",()=>{currentPage=Math.max(1,currentPage-1);render()});
   document.getElementById("nextPage")?.addEventListener("click",()=>{currentPage++;render()});
+  document.getElementById("closePreview")?.addEventListener("click",closePreview);
+  document.getElementById("previewModal")?.addEventListener("click",e=>{if(e.target.id==="previewModal")closePreview()});
   loadContent();
 });
 
@@ -135,7 +137,7 @@ function render(){
     const p=document.createElement("p");p.textContent=v.hashtags||"No hashtags";
     const meta=document.createElement("div");meta.className="meta";meta.textContent="👁 "+v.views+"   ❤️ "+v.likeCount+"   💬 "+v.commentCount+"   • "+new Date(v.createdAt).toLocaleDateString();
     info.append(h,p,meta);
-    const actions=document.createElement("div");actions.className="actions";actions.innerHTML='<button>Edit</button><button></button><button class="delete">Delete</button>';
+    const actions=document.createElement("div");actions.className="actions";actions.innerHTML='<button class="preview-btn">Preview</button><button>Edit</button><button></button><button class="delete">Delete</button>';
     actions.children[1].textContent=v.status==="draft"?"Publish":"Hide";
     actions.children[0].onclick=()=>openEditor(v.id);actions.children[1].onclick=()=>toggleStatus(v.id);actions.children[2].onclick=()=>deleteVideo(v.id);
     row.append(check,thumb,info,actions);list.append(row);
