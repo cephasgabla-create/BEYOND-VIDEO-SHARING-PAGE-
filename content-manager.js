@@ -84,12 +84,14 @@ function showContentError(message){
   const empty=document.getElementById("emptyState");
   if(!empty)return;
   empty.style.display="block";
-  empty.innerHTML="<div>⚠️</div><h2>Content Manager unavailable</h2><p>"+escapeHtml(message)+"</p><button onclick="reloadContent()">Try again</button>";
+  empty.innerHTML=`<div>⚠️</div><h2>Content Manager unavailable</h2><p>${escapeHtml(message)}</p><button id="retryContent">Try again</button>`;
+  document.getElementById("retryContent")?.addEventListener("click",reloadContent);
 }
 function clearContentError(){
   const empty=document.getElementById("emptyState");
   if(!empty)return;
-  empty.innerHTML='<div>🎬</div><h2>No content yet</h2><p>Upload your first Beyond video and manage it here.</p><button onclick="location.href="upload.html"">Upload video</button>';
+  empty.innerHTML=`<div>🎬</div><h2>No content yet</h2><p>Upload your first Beyond video and manage it here.</p><button id="uploadContent">Upload video</button>`;
+  document.getElementById("uploadContent")?.addEventListener("click",()=>{location.href="upload.html"});
 }
 function reloadContent(){loadContent()}
 function escapeHtml(value){
@@ -103,6 +105,8 @@ function updateStats(){
   document.getElementById("totalComments").textContent=compact(contentItems.reduce((n,v)=>n+v.commentCount,0));
 }
 
+
+function compact(n){return n>999?((n/1000).toFixed(n>9999?0:1)+"K"):String(n)}
 
 function filteredItems(){
   const q=document.getElementById("searchContent").value.trim().toLowerCase(),sort=document.getElementById("sortContent").value;
