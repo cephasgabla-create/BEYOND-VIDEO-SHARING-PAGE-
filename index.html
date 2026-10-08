@@ -5,7 +5,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Beyond - Short Videos</title>
   <link rel="stylesheet" href="style.css">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="supabase.js"></script></head>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="supabase.js"></script><script>
+(function(){
+  function go(page){ window.location.assign(page); }
+  window.BeyondRoutes={
+    home:function(){go("index.html");},
+    login:function(){go("login.html");},
+    signup:function(){go("signup.html");},
+    upload:function(){go("upload.html");},
+    profile:function(){go("profile.html");},
+    search:function(){go("search.html");},
+    creatorStudio:function(){go("creator-studio.html");}
+  };
+  window.addEventListener("error",function(e){
+    if(e.target && e.target.tagName==="SCRIPT" && e.target.src){
+      console.warn("Beyond script failed to load:",e.target.src);
+    }
+  },true);
+})();
+</script>
+</head>
 <body>
   <header class="top-bar">
     <div class="logo">Beyond</div>
