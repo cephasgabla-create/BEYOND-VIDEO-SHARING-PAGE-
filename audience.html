@@ -1,1 +1,90 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Audience & Followers - Beyond</title><link rel="stylesheet" href="audience.css"></head><body><header><button onclick="location.href='creator-studio.html'">←</button><div><small>BEYOND CREATOR STUDIO</small><h1>Audience & Followers</h1></div></header><main><section class="hero"><div><span>AUDIENCE INSIGHTS</span><h2>Understand your community</h2><p>Track follower growth, new followers and audience activity.</p></div><button onclick="location.href='profile.html'">View Profile</button></section><section class="cards"><article><span>Total followers</span><b id="followers">0</b><em id="followerChange">No growth data yet</em></article><article><span>New followers</span><b id="newFollowers">0</b><em>This period</em></article><article><span>Following</span><b id="following">0</b><em>Accounts you follow</em></article><article><span>Net growth</span><b id="netGrowth">0</b><em>New followers minus losses</em></article></section><section class="panel"><div class="title"><div><small>GROWTH</small><h2>Follower growth</h2></div><span id="range">Last 7 days</span></div><div class="chart"><canvas id="growthChart"></canvas></div></section><section class="grid"><section class="panel"><div class="title"><div><small>ACTIVITY</small><h2>Following activity</h2></div></div><div id="activity" class="activity"></div></section><section class="panel"><div class="title"><div><small>AUDIENCE</small><h2>Audience insights</h2></div></div><div class="insights"><div><span>Followers with recorded activity</span><strong id="activeAudience">0</strong></div><div><span>Follower growth rate</span><strong id="growthRate">0%</strong></div><div><span>Follower / following ratio</span><strong id="ratio">0</strong></div><div><span>Top audience source</span><strong id="source">Not available</strong></div></div></section></section><section class="panel"><div class="title"><div><small>RECENT GROWTH</small><h2>Follower history</h2></div></div><div id="history" class="history"></div></section></main><script src="audience.js"></script></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Beyond Creator Studio Audience and Followers">
+  <title>Audience & Followers | Beyond Creator Studio</title>
+  <link rel="stylesheet" href="audience.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <button class="icon-btn" onclick="location.href='creator-studio.html'" aria-label="Back to Creator Studio">←</button>
+      <div><span>BEYOND</span><h1>Audience & Followers</h1></div>
+    </div>
+    <button class="outline-btn" onclick="location.href='profile.html'">View profile</button>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <div>
+        <span class="eyebrow">AUDIENCE INSIGHTS</span>
+        <h2>Understand your community.</h2>
+        <p>Track follower growth, following activity, and the audience signals recorded by Beyond.</p>
+      </div>
+      <button class="primary-btn" onclick="location.href='upload.html'">＋ Create content</button>
+    </section>
+
+    <section class="stat-grid" aria-label="Audience overview">
+      <article class="stat-card">
+        <span>Total followers</span>
+        <strong id="followers">0</strong>
+        <small id="followerChange">No growth data yet</small>
+      </article>
+      <article class="stat-card">
+        <span>New followers</span>
+        <strong id="newFollowers">0</strong>
+        <small>Latest recorded period</small>
+      </article>
+      <article class="stat-card">
+        <span>Following</span>
+        <strong id="following">0</strong>
+        <small>Accounts you follow</small>
+      </article>
+      <article class="stat-card">
+        <span>Net growth</span>
+        <strong id="netGrowth">0</strong>
+        <small>New followers minus losses</small>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div><span class="eyebrow">GROWTH</span><h2>Follower growth</h2><p>Recorded follower totals over time.</p></div>
+        <span class="range-pill" id="range">Last 7 records</span>
+      </div>
+      <div class="chart-wrap"><canvas id="growthChart" aria-label="Follower growth chart"></canvas></div>
+      <div class="chart-legend"><span><i></i> Followers</span><span id="chartStatus">Waiting for recorded growth data</span></div>
+    </section>
+
+    <section class="two-column">
+      <section class="panel">
+        <div class="panel-head compact"><div><span class="eyebrow">ACTIVITY</span><h2>Following activity</h2></div></div>
+        <div id="activity" class="activity-list"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head compact"><div><span class="eyebrow">AUDIENCE</span><h2>Audience insights</h2></div></div>
+        <div class="insight-grid">
+          <div class="insight"><span>Recorded active audience</span><strong id="activeAudience">0</strong></div>
+          <div class="insight"><span>Growth rate</span><strong id="growthRate">0%</strong></div>
+          <div class="insight"><span>Follower / following</span><strong id="ratio">0</strong></div>
+          <div class="insight"><span>Top recorded source</span><strong id="source">Not available</strong></div>
+        </div>
+      </section>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><div><span class="eyebrow">HISTORY</span><h2>Recent follower growth</h2><p>New and lost followers from recorded periods.</p></div></div>
+      <div id="history" class="history-list"></div>
+    </section>
+
+    <section class="notice">
+      <strong>About these insights</strong>
+      <p>These metrics use follower and activity records available in this Beyond project. If no real growth events have been recorded yet, the dashboard shows zero or a clear empty state instead of inventing numbers.</p>
+    </section>
+  </main>
+  <script src="audience.js"></script>
+</body>
+</html>
