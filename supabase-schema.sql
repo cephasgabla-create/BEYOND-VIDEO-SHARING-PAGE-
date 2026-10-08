@@ -690,3 +690,54 @@ select jsonb_build_object(
 $$;
 
 grant execute on function public.get_beyond_discover(integer) to anon, authenticated;
+
+
+-- Real Beyond Analytics view events.
+create table if not exists public.video_views (
+  id bigint generated always as identity primary key,
+  video_id bigint not null references public.videos(id) on delete cascade,
+  viewer_id uuid references auth.users(id) on delete set null,
+  viewed_at timestamptz not null default now()
+);
+create index if not exists video_views_video_time_idx on public.video_views(video_id, viewed_at desc);
+create index if not exists video_views_time_idx on public.video_views(viewed_at desc);
+alter table public.video_views enable row level security;
+do $$ begin
+  create policy "video owners can read their view events" on public.video_views
+    for select to authenticated
+    using (exists (select 1 from public.videos v where v.id=video_views.video_id and v.user_id=auth.uid()));
+exception when duplicate_object then null; end $$;
+do $$ begin
+  create policy "viewers can record views" on public.video_views
+    for insert to anon, authenticated
+    with check (viewer_id is null or viewer_id=auth.uid());
+exception when duplicate_object then null; end $$;
+
+create or replace function public.increment_video_view(video_id bigint)
+returns bigint
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare new_count bigint;
+declare viewer uuid;
+begin
+  viewer := auth.uid();
+  update public.videos
+    set views_count = coalesce(views_count,0) + 1
+    where id = increment_video_view.video_id
+      and status = 'published'
+    returning views_count into new_count;
+  if new_count is not null then
+    insert into public.video_views(video_id,viewer_id)
+    values (increment_video_view.video_id,viewer);
+  end if;
+  return coalesce(new_count,0);
+end;
+$$;
+grant execute on function public.increment_video_view(bigint) to anon, authenticated;
+
+alter table public.video_views replica identity full;
+do $$ begin
+  alter publication supabase_realtime add table public.video_views;
+exception when duplicate_object then null; end $$;
