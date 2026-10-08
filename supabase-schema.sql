@@ -1037,6 +1037,51 @@ $$;
 revoke all on function public.get_beyond_unread_message_count() from public;
 grant execute on function public.get_beyond_unread_message_count() to authenticated;
 
+-- Ensure every authenticated account has a usable Beyond profile.
+create or replace function public.ensure_beyond_profile()
+returns public.profiles
+language plpgsql
+security definer
+set search_path = public
+as $
+declare p public.profiles;
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication required';
+  end if;
+
+  insert into public.profiles (id, username, display_name)
+  values (
+    auth.uid(),
+    'user_' || substr(replace(auth.uid()::text,'-',''),1,12),
+    coalesce(split_part(auth.jwt()->>'email','@',1),'Beyond User')
+  )
+  on conflict (id) do nothing;
+
+  select * into p from public.profiles where id = auth.uid();
+  return p;
+end;
+$;
+
+revoke all on function public.ensure_beyond_profile() from public;
+grant execute on function public.ensure_beyond_profile() to authenticated;
+
+-- Keep profile ownership locked to the authenticated user.
+drop policy if exists "users update their profile" on public.profiles;
+do $ begin
+  create policy "users update their profile" on public.profiles
+    for update to authenticated
+    using (id = auth.uid())
+    with check (id = auth.uid());
+exception when duplicate_object then null; end $;
+
+drop policy if exists "users insert their profile" on public.profiles;
+do $ begin
+  create policy "users insert their profile" on public.profiles
+    for insert to authenticated
+    with check (id = auth.uid());
+exception when duplicate_object then null; end $;
+
 -- Secure direct-message read state with RPCs.
 -- Clients may insert messages only as themselves and read only conversations they belong to.
 -- Direct UPDATE is intentionally disabled so clients cannot edit message content,
