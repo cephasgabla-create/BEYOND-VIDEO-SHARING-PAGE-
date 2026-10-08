@@ -1,9 +1,42 @@
-let currentUser=null,currentOtherId=null,profiles=new Map(),messagesChannel=null;
+let currentUser=null,currentOtherId=null,profiles=new Map(),messagesChannel=null,chatPresenceChannel=null,typingTimer=null;
 const $=id=>document.getElementById(id);
 function esc(v){const d=document.createElement("div");d.textContent=v??"";return d.innerHTML}
 function avatar(p){return p?.avatar_url||"data:image/svg+xml;charset=UTF-8,"+encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80'><rect width='100%' height='100%' fill='#ddd'/><text x='50%' y='55%' text-anchor='middle' font-size='30' fill='#777'>B</text></svg>")}
 function profileName(p){return p?.display_name||p?.username||"Beyond user"}
 function setStatus(s){$("messageStatus").textContent=s||""}
+function setChatPresence(online){
+  const el=$("chatPresence");
+  if(el)el.textContent=online?"● Online":"○ Offline";
+}
+function setTyping(text){
+  const el=$("chatTyping");
+  if(el)el.textContent=text||"";
+}
+async function closeChatPresence(){
+  if(chatPresenceChannel){
+    await leaveBeyondChatPresence(chatPresenceChannel);
+    chatPresenceChannel=null;
+  }
+  setChatPresence(false);setTyping("");
+}
+async function openChatPresence(){
+  await closeChatPresence();
+  if(!currentOtherId||!currentUser)return;
+  chatPresenceChannel=subscribeBeyondChatPresence(currentUser.id,currentOtherId,{
+    onPresence:state=>setChatPresence(Object.keys(state||{}).some(k=>k!==currentUser.id)),
+    onTyping:data=>{
+      if(data.userId===currentOtherId&&data.typing){
+        setTyping("Typing…");
+        clearTimeout(typingTimer);
+        typingTimer=setTimeout(()=>setTyping(""),1800);
+      }else if(data.userId===currentOtherId){setTyping("")}
+    }
+  });
+}
+function sendTyping(typing){
+  if(!chatPresenceChannel||!currentUser)return;
+  chatPresenceChannel.send({type:"broadcast",event:"typing",payload:{userId:currentUser.id,typing:Boolean(typing)}}).catch(()=>{});
+}
 
 async function loadProfileForUser(id){
   if(!id||profiles.has(id))return profiles.get(id)||null;
@@ -26,7 +59,8 @@ async function openConversation(id){
   if(!id||id===currentUser.id)return;
   currentOtherId=id;
   const p=await loadProfileForUser(id);
-  $("chatHeader").innerHTML="<div><strong>"+esc(profileName(p))+"</strong><span>@"+esc(p?.username||"user")+"</span></div>";
+  $("chatHeader").innerHTML="<div><strong>"+esc(profileName(p))+"</strong><span id="chatPresence">○ Offline</span><span id="chatTyping"></span></div>";
+  await openChatPresence();
   $("messageInput").disabled=false;$("sendBtn").disabled=false;setStatus("");
   await renderConversation();await markBeyondConversationRead(id);await loadConversations();
 }
@@ -40,12 +74,18 @@ async function renderConversation(){
 $("messageForm").addEventListener("submit",async e=>{
   e.preventDefault();const input=$("messageInput"),content=input.value.trim();
   if(!content||!currentOtherId)return;
-  input.disabled=true;setStatus("Sending…");
+  input.disabled=true;sendTyping(false);setStatus("Sending…");
   try{await sendBeyondMessage(currentOtherId,content);input.value="";await renderConversation();await loadConversations();setStatus("")}
   catch(err){setStatus(err.message)}
   finally{input.disabled=false;input.focus()}
 });
 $("refreshBtn").onclick=loadConversations;
+$("messageInput").addEventListener("input",()=>{
+  sendTyping(true);
+  clearTimeout(typingTimer);
+  typingTimer=setTimeout(()=>sendTyping(false),1200);
+});
+window.addEventListener("beforeunload",()=>{if(chatPresenceChannel)chatPresenceChannel.unsubscribe()});
 
 (async function init(){
   try{
