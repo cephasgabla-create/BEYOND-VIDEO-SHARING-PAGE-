@@ -376,7 +376,7 @@ begin
   return coalesce(new_count,0);
 end;
 $$;
-grant execute on function public.change_live_viewer_count(bigint, integer) to anon, authenticated;
+grant execute on function public.change_live_viewer_count(bigint, integer) to authenticated;
 
 
 -- Persistent creator branding fields.
@@ -1547,8 +1547,6 @@ with check (host_id=auth.uid());
 
 
 -- Final least-privilege hardening for live viewer accounting.
-revoke execute on function public.change_live_viewer_count(bigint,integer) from anon;
-grant execute on function public.change_live_viewer_count(bigint,integer) to authenticated;
 
 -- Prevent unauthenticated clients from invoking the controlled video-view incrementer
 -- if the application later moves view counting behind authenticated sessions.
