@@ -198,7 +198,7 @@ function setupRealtime(db,userId){
     .on("postgres_changes",{event:"*",schema:"public",table:"likes"},()=>loadContent())
     .on("postgres_changes",{event:"*",schema:"public",table:"comments"},()=>loadContent())
     .subscribe();
-}}
+}
 function findContentItem(id){return contentItems.find(v=>String(v.id)===String(id))}
 function openEditor(id){
   const v=findContentItem(id);if(!v)return;
