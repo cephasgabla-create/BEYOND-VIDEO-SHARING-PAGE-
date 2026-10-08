@@ -43,8 +43,6 @@ async function loadContent(){
           db.from("comments").select("video_id")
         ]);
         if(vError) throw vError;
-        // Likes/comments are supplementary. If their tables are protected or unavailable,
-        // keep the video list working and use the counters stored on videos.
         const likeMap={},commentMap={};
         (likes||[]).forEach(x=>likeMap[x.video_id]=(likeMap[x.video_id]||0)+1);
         (comments||[]).forEach(x=>commentMap[x.video_id]=(commentMap[x.video_id]||0)+1);
@@ -132,11 +130,8 @@ function render(){
     const check=document.createElement("input");check.type="checkbox";check.className="row-select";check.checked=selectedIds.has(String(v.id));check.setAttribute("aria-label","Select video");
     check.onchange=()=>{check.checked?selectedIds.add(String(v.id)):selectedIds.delete(String(v.id));row.classList.toggle("selected",check.checked);updateBulkControls()};
     const thumb=document.createElement("video");thumb.className="thumb";thumb.muted=true;thumb.preload="metadata";thumb.playsInline=true;
-    if(v.videoUrl) thumb.src=v.videoUrl;
-    else if(v.video){
-      if(!localObjectUrls.has(String(v.id))) localObjectUrls.set(String(v.id),URL.createObjectURL(v.video));
-      thumb.src=localObjectUrls.get(String(v.id));
-    }
+    const thumbSrc=getVideoSource(v);
+    if(thumbSrc) thumb.src=thumbSrc;
     const info=document.createElement("div");info.className="content-info";
     const h=document.createElement("h3");h.textContent=v.caption||"Untitled Beyond video";
     const badge=document.createElement("span");badge.className="status "+(v.status==="draft"?"draft":"published");badge.textContent=v.status;h.appendChild(badge);
@@ -144,7 +139,6 @@ function render(){
     const meta=document.createElement("div");meta.className="meta";meta.textContent="👁 "+v.views+"   ❤️ "+v.likeCount+"   💬 "+v.commentCount+"   • "+new Date(v.createdAt).toLocaleDateString();
     info.append(h,p,meta);
     const actions=document.createElement("div");actions.className="actions";actions.innerHTML='<button class="preview-btn">Preview</button><button>Edit</button><button></button><button class="delete">Delete</button>';
-    actions.children[1].textContent="Edit";
     actions.children[2].textContent=v.status==="draft"?"Publish":"Hide";
     actions.children[0].onclick=()=>openPreview(v.id);actions.children[1].onclick=()=>openEditor(v.id);actions.children[2].onclick=()=>toggleStatus(v.id);actions.children[3].onclick=()=>deleteVideo(v.id);
     row.append(check,thumb,info,actions);list.append(row);
@@ -188,7 +182,7 @@ async function bulkDelete(){
       const db=getSupabase();
       const targets=contentItems.filter(v=>ids.includes(String(v.id)));
       const {error}=await db.from("videos").delete().in("id",ids);if(error)throw error;
-      for(const v of targets){if(v.videoUrl){const marker="/storage/v1/object/public/videos/",i=v.videoUrl.indexOf(marker);if(i>=0){const path=decodeURIComponent(v.videoUrl.slice(i+marker.length));await db.storage.from("videos").remove([path])}}}
+      for(const v of targets){const path=extractStoragePath(v.videoUrl);if(path){const {error:storageError}=await db.storage.from("videos").remove([path]);if(storageError)console.warn("Video record deleted, but storage cleanup failed:",storageError)}}
     }else{
       const db=await openDB();
       await Promise.all(ids.map(id=>new Promise((resolve,reject)=>{const tx=db.transaction("videos","readwrite");tx.objectStore("videos").delete(Number(id));tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)})));
@@ -209,6 +203,13 @@ function extractStoragePath(videoUrl){
   const marker="/storage/v1/object/public/videos/";
   const index=videoUrl.indexOf(marker);
   return index>=0?decodeURIComponent(videoUrl.slice(index+marker.length)):null;
+}
+function getVideoSource(v){
+  if(v.videoUrl)return v.videoUrl;
+  if(!v.video)return "";
+  const key=String(v.id);
+  if(!localObjectUrls.has(key))localObjectUrls.set(key,URL.createObjectURL(v.video));
+  return localObjectUrls.get(key);
 }
 async function toggleStatus(id){
   const v=findContentItem(id);if(!v)return;
@@ -268,8 +269,7 @@ function openEditor(id){
   document.getElementById("editCommentsEnabled").checked=v.commentsEnabled!==false;
   document.getElementById("editStatus").value=v.status||"published";
   const video=document.getElementById("editVideoPreview");
-  const src=v.videoUrl||(v.video?(localObjectUrls.get(String(v.id))||(localObjectUrls.set(String(v.id),URL.createObjectURL(v.video)),localObjectUrls.get(String(v.id))):""));
-  video.src=src;video.load();
+  video.src=getVideoSource(v);video.load();
   updateCaptionCount();document.getElementById("editModal").classList.add("show");
 }
 function closeEditor(){
@@ -293,4 +293,15 @@ async function saveEditor(forcedStatus){
 document.getElementById("editCaption")?.addEventListener("input",updateCaptionCount);
 document.getElementById("editModal")?.addEventListener("click",e=>{if(e.target.id==="editModal")closeEditor()});
 
-function openPreview(id){const v=findContentItem(id);if(!v)return;const m=document.getElementById("previewModal"),x=document.getElementById("previewVideo");document.getElementById("previewTitle").textContent=v.caption||"Untitled Beyond video";document.getElementById("previewTags").textContent=v.hashtags||"No hashtags";document.getElementById("previewStats").textContent="Views "+v.views+" • Likes "+v.likeCount+" • Comments "+v.commentCount+" • "+(v.visibility||"public");const src=v.videoUrl||(v.video?(localObjectUrls.get(String(v.id))||(localObjectUrls.set(String(v.id),URL.createObjectURL(v.video)),localObjectUrls.get(String(v.id))):"");x.src=src;x.load();m.classList.add("show")}function closePreview(){const m=document.getElementById("previewModal"),x=document.getElementById("previewVideo");m.classList.remove("show");x.pause();x.removeAttribute("src");x.load()}
+function openPreview(id){
+  const v=findContentItem(id);if(!v)return;
+  const m=document.getElementById("previewModal"),x=document.getElementById("previewVideo");
+  document.getElementById("previewTitle").textContent=v.caption||"Untitled Beyond video";
+  document.getElementById("previewTags").textContent=v.hashtags||"No hashtags";
+  document.getElementById("previewStats").textContent="Views "+v.views+" • Likes "+v.likeCount+" • Comments "+v.commentCount+" • "+(v.visibility||"public");
+  x.src=getVideoSource(v);x.load();m.classList.add("show");
+}
+function closePreview(){
+  const m=document.getElementById("previewModal"),x=document.getElementById("previewVideo");
+  m.classList.remove("show");x.pause();x.removeAttribute("src");x.load();
+}
