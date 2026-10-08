@@ -794,3 +794,174 @@ alter table public.follower_events replica identity full;
 do $$ begin
   alter publication supabase_realtime add table public.follower_events;
 exception when duplicate_object then null; end $$;
+
+
+-- Beyond backend foundation: notifications and synchronized interaction counters.
+create table if not exists public.notifications (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  actor_id uuid references auth.users(id) on delete set null,
+  type text not null check (type in ('like','comment','follow','message')),
+  video_id bigint references public.videos(id) on delete cascade,
+  comment_id bigint references public.comments(id) on delete cascade,
+  message text not null default '',
+  read boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists notifications_user_time_idx
+  on public.notifications(user_id, created_at desc);
+create index if not exists notifications_unread_idx
+  on public.notifications(user_id, read, created_at desc);
+
+alter table public.notifications enable row level security;
+
+do $$ begin
+  create policy "users read their notifications"
+    on public.notifications for select to authenticated
+    using (user_id = auth.uid());
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create policy "users mark their notifications read"
+    on public.notifications for update to authenticated
+    using (user_id = auth.uid())
+    with check (user_id = auth.uid());
+exception when duplicate_object then null; end $$;
+
+create or replace function public.create_beyond_notification(
+  target_user uuid,
+  actor uuid,
+  notification_type text,
+  target_video bigint default null,
+  target_comment bigint default null,
+  notification_message text default ''
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if target_user is null or actor is null or target_user = actor then
+    return;
+  end if;
+
+  insert into public.notifications(
+    user_id, actor_id, type, video_id, comment_id, message
+  )
+  values (
+    target_user, actor, notification_type, target_video, target_comment,
+    left(coalesce(notification_message,''), 500)
+  );
+end;
+$$;
+
+revoke all on function public.create_beyond_notification(uuid,uuid,text,bigint,bigint,text) from public;
+grant execute on function public.create_beyond_notification(uuid,uuid,text,bigint,bigint,text) to authenticated;
+
+create or replace function public.beyond_like_notification()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare owner_id uuid;
+begin
+  select user_id into owner_id from public.videos where id = new.video_id;
+  perform public.create_beyond_notification(
+    owner_id, new.user_id, 'like', new.video_id, null, 'Someone liked your video.'
+  );
+  return new;
+end;
+$$;
+
+drop trigger if exists beyond_like_notification_trigger on public.likes;
+create trigger beyond_like_notification_trigger
+after insert on public.likes
+for each row execute function public.beyond_like_notification();
+
+create or replace function public.beyond_comment_notification()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare owner_id uuid;
+begin
+  select user_id into owner_id from public.videos where id = new.video_id;
+  perform public.create_beyond_notification(
+    owner_id, new.user_id, 'comment', new.video_id, new.id, 'Someone commented on your video.'
+  );
+  return new;
+end;
+$$;
+
+drop trigger if exists beyond_comment_notification_trigger on public.comments;
+create trigger beyond_comment_notification_trigger
+after insert on public.comments
+for each row execute function public.beyond_comment_notification();
+
+create or replace function public.beyond_follow_notification()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform public.create_beyond_notification(
+    new.following_id, new.follower_id, 'follow', null, null, 'You have a new follower.'
+  );
+  return new;
+end;
+$$;
+
+drop trigger if exists beyond_follow_notification_trigger on public.follows;
+create trigger beyond_follow_notification_trigger
+after insert on public.follows
+for each row execute function public.beyond_follow_notification();
+
+create or replace function public.sync_video_comment_count()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare target_video bigint;
+begin
+  target_video := case when tg_op = 'DELETE' then old.video_id else new.video_id end;
+  update public.videos
+    set comments_count = (
+      select count(*) from public.comments
+      where video_id = target_video and coalesce(hidden_by_creator,false) = false
+    )
+    where id = target_video;
+  return case when tg_op = 'DELETE' then old else new end;
+end;
+$$;
+
+alter table public.videos add column if not exists comments_count bigint not null default 0;
+
+drop trigger if exists beyond_sync_video_comments on public.comments;
+create trigger beyond_sync_video_comments
+after insert or delete on public.comments
+for each row execute function public.sync_video_comment_count();
+
+alter table public.notifications replica identity full;
+do $$ begin
+  alter publication supabase_realtime add table public.notifications;
+exception when duplicate_object then null; end $$;
+
+-- Secure RPC for unread notification count.
+create or replace function public.get_beyond_unread_notification_count()
+returns bigint
+language sql
+security definer
+set search_path = public
+as $$
+  select count(*)::bigint
+  from public.notifications
+  where user_id = auth.uid() and read = false;
+$$;
+
+grant execute on function public.get_beyond_unread_notification_count() to authenticated;
