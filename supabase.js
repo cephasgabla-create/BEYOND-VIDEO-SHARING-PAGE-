@@ -9,11 +9,11 @@ const BEYOND_SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
 let beyondDB = null;
 
 function initBeyondDatabase(){
-  if(!window.supabase){
+  if(!window.supabase || typeof window.supabase.createClient !== "function"){
     console.warn("Supabase library is not loaded yet.");
     return null;
   }
-  if(BEYOND_SUPABASE_URL.startsWith("YOUR_")) {
+  if(!BEYOND_SUPABASE_URL || BEYOND_SUPABASE_URL.startsWith("YOUR_") || !BEYOND_SUPABASE_ANON_KEY || BEYOND_SUPABASE_ANON_KEY.startsWith("YOUR_")) {
     console.warn("Add your Supabase URL and anon key in supabase.js.");
     return null;
   }
