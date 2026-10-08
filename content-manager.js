@@ -39,66 +39,61 @@ async function loadContent(){
   contentLoadInProgress=true;
   try{
     const db=getSupabase();
-    if(db){
-      const {data:{user}}=await db.auth.getUser();
-      if(user){
-        usingSupabase=true;
-        const {data:videos,error:vError}=await db.from("videos").select("*").eq("user_id",user.id).order("created_at",{ascending:false});
-        if(vError) throw vError;
-        const ids=(videos||[]).map(v=>v.id);
-        let likes=[],comments=[];
-        if(ids.length){
-          const [lr,cr]=await Promise.all([
-            db.from("likes").select("video_id").in("video_id",ids),
-            db.from("comments").select("video_id").in("video_id",ids)
-          ]);
-          if(lr.error)throw lr.error;
-          if(cr.error)throw cr.error;
-          likes=lr.data||[];
-          comments=cr.data||[];
-        }
-        const likeMap={},commentMap={};
-        likes.forEach(x=>likeMap[x.video_id]=(likeMap[x.video_id]||0)+1);
-        comments.forEach(x=>commentMap[x.video_id]=(commentMap[x.video_id]||0)+1);
-        contentItems=(videos||[]).map(v=>({
-          id:v.id,caption:v.caption||"",hashtags:v.hashtags||"",status:v.status||"published",
-          views:Number(v.views_count||0),likeCount:likeMap[v.id]??Number(v.likes_count||0),
-          commentCount:commentMap[v.id]??0,createdAt:v.created_at,videoUrl:v.video_url,
-          visibility:v.visibility||"public",commentsEnabled:v.comments_enabled!==false
-        }));
-        updateStats();
-        render();
-        setupRealtime(db,user.id);
-        return;
-      }
+    if(!db) throw new Error("Beyond Supabase is not configured.");
+    const {data:{user},error:authError}=await db.auth.getUser();
+    if(authError) throw authError;
+    if(!user){
+      window.location.href="login.html?redirect=content-manager.html";
+      return;
     }
-    usingSupabase=false;
-    await loadLocalContent();
+    usingSupabase=true;
+    const {data:videos,error:vError}=await db.from("videos").select("*").eq("user_id",user.id).order("created_at",{ascending:false});
+    if(vError) throw vError;
+    const ids=(videos||[]).map(v=>v.id);
+    let likes=[],comments=[];
+    if(ids.length){
+      const [lr,cr]=await Promise.all([
+        db.from("likes").select("video_id").in("video_id",ids),
+        db.from("comments").select("video_id").in("video_id",ids)
+      ]);
+      if(lr.error)throw lr.error;
+      if(cr.error)throw cr.error;
+      likes=lr.data||[];
+      comments=cr.data||[];
+    }
+    const likeMap={},commentMap={};
+    likes.forEach(x=>likeMap[x.video_id]=(likeMap[x.video_id]||0)+1);
+    comments.forEach(x=>commentMap[x.video_id]=(commentMap[x.video_id]||0)+1);
+    contentItems=(videos||[]).map(v=>({
+      id:v.id,caption:v.caption||"",hashtags:v.hashtags||"",status:v.status||"published",
+      views:Number(v.views_count||0),likeCount:likeMap[v.id]??Number(v.likes_count||0),
+      commentCount:commentMap[v.id]??0,createdAt:v.created_at,videoUrl:v.video_url,
+      visibility:v.visibility||"public",commentsEnabled:v.comments_enabled!==false
+    }));
+    updateStats(); render(); setupRealtime(db,user.id); clearContentError();
   }catch(e){
     console.error("Supabase Content Manager:",e);
     usingSupabase=false;
-    await loadLocalContent();
+    contentItems=[]; updateStats(); render(); showContentError(e.message||"Could not load your Beyond content.");
   }finally{
     contentLoadInProgress=false;
   }
 }
 
-async function loadLocalContent(){
-  try{
-    const db=await openDB();
-    const user=localStorage.getItem("beyondUsername");
-    const videos=await getAll(db,"videos");
-    contentItems=videos.filter(v=>!user||v.username===user);
-    const likes=await getAll(db,"likes").catch(()=>[]);
-    const comments=await getAll(db,"comments").catch(()=>[]);
-    contentItems.forEach(v=>{
-      v.likeCount=likes.filter(l=>l.postId===v.id).length;
-      v.commentCount=comments.filter(c=>c.postId===v.id).length;
-      v.views=Number(localStorage.getItem("beyondViews_"+v.id)||0);
-      v.status=v.status||"published";v.visibility=v.visibility||"public";v.commentsEnabled=v.commentsEnabled!==false;
-    });
-    updateStats(); render();
-  }catch(e){console.error(e)}
+function showContentError(message){
+  const empty=document.getElementById("emptyState");
+  if(!empty)return;
+  empty.style.display="block";
+  empty.innerHTML="<div>⚠️</div><h2>Content Manager unavailable</h2><p>"+escapeHtml(message)+"</p><button onclick="reloadContent()">Try again</button>";
+}
+function clearContentError(){
+  const empty=document.getElementById("emptyState");
+  if(!empty)return;
+  empty.innerHTML='<div>🎬</div><h2>No content yet</h2><p>Upload your first Beyond video and manage it here.</p><button onclick="location.href="upload.html"">Upload video</button>';
+}
+function reloadContent(){loadContent()}
+function escapeHtml(value){
+  return String(value).replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
 }
 
 function updateStats(){
@@ -108,26 +103,6 @@ function updateStats(){
   document.getElementById("totalComments").textContent=compact(contentItems.reduce((n,v)=>n+v.commentCount,0));
 }
 
-function openDB(){
-  return new Promise((resolve,reject)=>{
-    const r=indexedDB.open("BeyondDatabase",4);
-    r.onupgradeneeded=e=>{
-      const d=e.target.result;
-      if(!d.objectStoreNames.contains("videos"))d.createObjectStore("videos",{keyPath:"id",autoIncrement:true});
-      if(!d.objectStoreNames.contains("comments"))d.createObjectStore("comments",{keyPath:"id",autoIncrement:true});
-      if(!d.objectStoreNames.contains("likes"))d.createObjectStore("likes",{keyPath:"key"});
-    };
-    r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);
-  });
-}
-function getAll(db,name){
-  return new Promise((resolve,reject)=>{
-    if(!db.objectStoreNames.contains(name)){resolve([]);return}
-    const r=db.transaction(name,"readonly").objectStore(name).getAll();
-    r.onsuccess=()=>resolve(r.result||[]);r.onerror=()=>reject(r.error);
-  });
-}
-function compact(n){return n>999?((n/1000).toFixed(n>9999?0:1)+"K"):String(n)}
 
 function filteredItems(){
   const q=document.getElementById("searchContent").value.trim().toLowerCase(),sort=document.getElementById("sortContent").value;
@@ -181,13 +156,9 @@ function togglePageSelection(){
 async function bulkSetStatus(status){
   const ids=[...selectedIds];if(!ids.length)return;
   try{
-    if(usingSupabase){
-      const db=getSupabase();const {error}=await db.from("videos").update({status}).in("id",ids);
-      if(error)throw error;
-    }else{
-      const db=await openDB();
-      await Promise.all(ids.map(id=>{const v=contentItems.find(x=>String(x.id)===id);if(!v)return Promise.resolve();v.status=status;return new Promise((resolve,reject)=>{const tx=db.transaction("videos","readwrite");tx.objectStore("videos").put(v);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)})}));
-    }
+    const db=getSupabase();if(!db)throw new Error("Supabase is unavailable.");
+    const {error}=await db.from("videos").update({status}).in("id",ids);
+    if(error)throw error;
     selectedIds.clear();await loadContent();
   }catch(e){alert("Bulk update failed: "+e.message)}
 }
@@ -195,14 +166,16 @@ async function bulkDelete(){
   const ids=[...selectedIds];if(!ids.length)return;
   if(!confirm("Delete "+ids.length+" selected video(s)? This cannot be undone."))return;
   try{
-    if(usingSupabase){
-      const db=getSupabase();
-      const targets=contentItems.filter(v=>ids.includes(String(v.id)));
-      const {error}=await db.from("videos").delete().in("id",ids);if(error)throw error;
-      for(const v of targets){const path=extractStoragePath(v.videoUrl);if(path){const {error:storageError}=await db.storage.from("videos").remove([path]);if(storageError)console.warn("Video record deleted, but storage cleanup failed:",storageError)}}
-    }else{
-      const db=await openDB();
-      await Promise.all(ids.map(id=>new Promise((resolve,reject)=>{const tx=db.transaction("videos","readwrite");tx.objectStore("videos").delete(Number(id));tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)})));
+    const db=getSupabase();if(!db)throw new Error("Supabase is unavailable.");
+    const targets=contentItems.filter(v=>ids.includes(String(v.id)));
+    const {error}=await db.from("videos").delete().in("id",ids);
+    if(error)throw error;
+    for(const v of targets){
+      const path=extractStoragePath(v.videoUrl);
+      if(path){
+        const {error:storageError}=await db.storage.from("videos").remove([path]);
+        if(storageError)console.warn("Video record deleted, but storage cleanup failed:",storageError);
+      }
     }
     selectedIds.clear();await loadContent();
   }catch(e){alert("Bulk delete failed: "+e.message)}
@@ -258,23 +231,13 @@ function getVideoSource(v){
   if(!localObjectUrls.has(key))localObjectUrls.set(key,URL.createObjectURL(v.video));
   return localObjectUrls.get(key);
 }
-async function toggleStatus(id){
+async async function toggleStatus(id){
   const v=findContentItem(id);if(!v)return;
   const status=v.status==="draft"?"published":"draft";
   try{
-    if(usingSupabase){
-      const db=getSupabase();
-      const {error}=await db.from("videos").update({status}).eq("id",id);
-      if(error)throw error;
-    }else{
-      v.status=status;
-      const db=await openDB();
-      await new Promise((resolve,reject)=>{
-        const tx=db.transaction("videos","readwrite");
-        tx.objectStore("videos").put(v);
-        tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
-      });
-    }
+    const db=getSupabase();if(!db)throw new Error("Supabase is unavailable.");
+    const {error}=await db.from("videos").update({status}).eq("id",id);
+    if(error)throw error;
     await loadContent();
   }catch(e){alert("Could not change video status: "+e.message)}
 }
@@ -282,27 +245,15 @@ async function deleteVideo(id){
   const v=findContentItem(id);if(!v)return;
   if(!confirm("Delete this video? This cannot be undone."))return;
   try{
-    if(usingSupabase){
-      const db=getSupabase();
-      const {error}=await db.from("videos").delete().eq("id",id);
-      if(error)throw error;
-      const path=extractStoragePath(v.videoUrl);
-      if(path){
-        const {error:storageError}=await db.storage.from("videos").remove([path]);
-        if(storageError)console.warn("Video record deleted, but storage cleanup failed:",storageError);
-      }
-    }else{
-      const db=await openDB();
-      await new Promise((resolve,reject)=>{
-        const tx=db.transaction("videos","readwrite");
-        tx.objectStore("videos").delete(id);
-        tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
-      });
-      const objectUrl=localObjectUrls.get(String(id));
-      if(objectUrl){URL.revokeObjectURL(objectUrl);localObjectUrls.delete(String(id));}
+    const db=getSupabase();if(!db)throw new Error("Supabase is unavailable.");
+    const {error}=await db.from("videos").delete().eq("id",id);
+    if(error)throw error;
+    const path=extractStoragePath(v.videoUrl);
+    if(path){
+      const {error:storageError}=await db.storage.from("videos").remove([path]);
+      if(storageError)console.warn("Video record deleted, but storage cleanup failed:",storageError);
     }
-    selectedIds.delete(String(id));
-    await loadContent();
+    selectedIds.delete(String(id));await loadContent();
   }catch(e){alert("Could not delete video: "+e.message)}
 }
 
@@ -328,12 +279,9 @@ async function saveEditor(forcedStatus){
   const v=findContentItem(currentEditId);if(!v)return;
   const caption=document.getElementById("editCaption").value.trim(),hashtags=document.getElementById("editHashtags").value.trim(),visibility=document.getElementById("editVisibility").value,commentsEnabled=document.getElementById("editCommentsEnabled").checked,status=forcedStatus||document.getElementById("editStatus").value;
   try{
-    if(usingSupabase){
-      const db=getSupabase();const {error}=await db.from("videos").update({caption,hashtags,visibility,comments_enabled:commentsEnabled,status}).eq("id",currentEditId);if(error)throw error;
-    }else{
-      Object.assign(v,{caption,hashtags,visibility,commentsEnabled,status});
-      const db=await openDB();await new Promise((resolve,reject)=>{const tx=db.transaction("videos","readwrite");tx.objectStore("videos").put(v);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});
-    }
+    const db=getSupabase();if(!db)throw new Error("Supabase is unavailable.");
+    const {error}=await db.from("videos").update({caption,hashtags,visibility,comments_enabled:commentsEnabled,status}).eq("id",currentEditId);
+    if(error)throw error;
     closeEditor();await loadContent();
   }catch(e){alert("Could not save video: "+e.message)}
 }
