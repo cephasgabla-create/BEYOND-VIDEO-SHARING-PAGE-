@@ -52,6 +52,7 @@ async function loadForYouFeed(){
   const db=typeof initBeyondDatabase==="function"?initBeyondDatabase():null;
   if(!db){
     staticCards.forEach(card=>card.style.display="flex");
+    try{ await loadLocalPublishedVideos(feed); }catch(error){ console.warn("Beyond local uploads could not be loaded:",error); }
     if(loading)loading.remove();
     return;
   }
@@ -80,6 +81,46 @@ async function loadForYouFeed(){
     console.warn("Beyond For You feed unavailable:",error);
     if(loading)loading.remove();
   }
+}
+
+async function loadLocalPublishedVideos(feed){
+  if(!feed || !("indexedDB" in window)) return;
+  const db=await openDatabase();
+  const request=db.transaction("videos","readonly").objectStore("videos").getAll();
+  const rows=await new Promise((resolve,reject)=>{
+    request.onsuccess=()=>resolve(request.result||[]);
+    request.onerror=()=>reject(request.error||new Error("Could not read saved videos."));
+  });
+  const existing=new Set(Array.from(feed.querySelectorAll(".video-card")).map(card=>card.dataset.localVideoId).filter(Boolean));
+  rows.filter(row=>row && row.status==="published" && row.video && !existing.has(String(row.id)))
+    .sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||"")))
+    .forEach(row=>{
+      const card=document.createElement("section");
+      card.className="video-card";
+      card.dataset.localVideoId=String(row.id);
+      card.dataset.creator=row.username||"BeyondCreator";
+      const video=document.createElement("video");
+      video.className="video"; video.src=URL.createObjectURL(row.video); video.loop=true; video.muted=true; video.playsInline=true; video.preload="metadata";
+      const info=document.createElement("div"); info.className="video-info";
+      const creator=document.createElement("div"); creator.className="creator-row";
+      const name=document.createElement("h3"); name.textContent="@"+(row.username||"BeyondCreator");
+      creator.appendChild(name);
+      const caption=document.createElement("p"); caption.textContent=row.caption||"";
+      const tags=document.createElement("p"); tags.textContent=row.hashtags||"";
+      info.append(creator,caption,tags);
+      const actions=document.createElement("div"); actions.className="video-actions";
+      const like=document.createElement("button"); like.type="button"; like.textContent="❤️ Local video";
+      const share=document.createElement("button"); share.type="button"; share.textContent="↗️ Share"; share.onclick=()=>shareVideo();
+      actions.append(like,share);
+      card.append(video,info,actions);
+      const tabs=feed.querySelector(".beyond-feed-tabs");
+      if(tabs && tabs.nextSibling) feed.insertBefore(card,tabs.nextSibling); else feed.appendChild(card);
+    });
+  if(!rows.some(row=>row && row.status==="published" && row.video)){
+    feed.querySelectorAll(".feed-empty").forEach(el=>el.remove());
+    const empty=document.createElement("div"); empty.className="feed-empty"; empty.textContent="No published videos yet. Upload a video to start your Beyond feed."; feed.appendChild(empty);
+  }
+  activateVideoObserver();
 }
 
 async function buildClientForYouFeed(db,limit){
