@@ -209,13 +209,21 @@ function createRemoteVideoCard(post){
   section.dataset.creator=username;
   section.dataset.postId=post.id;
 
-  const video=document.createElement("video");
-  video.className="video";
-  video.src=post.video_url;
-  video.loop=true;
-  video.muted=true;
-  video.playsInline=true;
-  video.preload="metadata";
+  const mediaPath=String(post.video_url||"").split("?")[0].toLowerCase();
+  const isPhoto=/\.(avif|gif|jpe?g|png|webp|bmp|heic)$/.test(mediaPath);
+  const media=document.createElement(isPhoto?"img":"video");
+  media.className="video";
+  media.src=post.video_url;
+  if(isPhoto){
+    media.alt=post.caption||"Photo shared on Beyond";
+    media.loading="lazy";
+    media.style.objectFit="contain";
+  }else{
+    media.loop=true;
+    media.muted=true;
+    media.playsInline=true;
+    media.preload="metadata";
+  }
 
   const info=document.createElement("div");
   info.className="video-info";
@@ -241,12 +249,12 @@ function createRemoteVideoCard(post){
   actions.children[0].onclick=()=>likeRemoteVideo(actions.children[0],post.id);
   actions.children[1].onclick=()=>commentVideo(post.id);
 
-  section.append(video,info,actions);
+  section.append(media,info,actions);
   feed.appendChild(section);
   loadRemoteLikeState(post.id,actions.children[0]);
   loadRemoteCommentCount(post.id,actions.children[1]);
   subscribeToRemoteVideo(post.id,section);
-  video.addEventListener("play",()=>recordRemoteVideoView(post.id),{once:true});
+  if(!isPhoto) media.addEventListener("play",()=>recordRemoteVideoView(post.id),{once:true});
 }
 
 async function likeRemoteVideo(button,videoId){
