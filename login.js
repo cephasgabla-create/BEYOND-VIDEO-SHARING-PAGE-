@@ -1,26 +1,13 @@
-const form=document.getElementById("loginForm");
-const message=document.getElementById("loginMessage");
-const button=document.getElementById("loginButton");
-const password=document.getElementById("password");
-
-function configured(){return typeof beyondDatabaseConfigured==="function"&&beyondDatabaseConfigured()}
-function getRedirect(){const value=new URLSearchParams(location.search).get("redirect")||"index.html";if(!/^[A-Za-z0-9._/?=&%-]+$/.test(value)||value.startsWith("//")||value.includes("://"))return "index.html";return value}
-function friendlyError(error){const m=String(error?.message||"Login failed. Please try again.");if(/invalid login credentials/i.test(m))return "Incorrect email or password.";if(/email not confirmed/i.test(m))return "Please confirm your email before logging in.";return m}
-async function login(){
-  const email=document.getElementById("email").value.trim().toLowerCase();const pass=password.value;const remember=document.getElementById("remember").checked;
-  message.textContent="";button.disabled=true;button.textContent="Logging in…";
-  try{
-    if(!email||!pass){throw new Error("Enter your email and password.")}
-    if(!configured())throw new Error("Beyond Supabase is not configured yet. Add your Supabase URL and anon key in supabase.js.");
-    const db=window.beyondDB||initBeyondDatabase();if(!db)throw new Error("Beyond database is unavailable.");
-    const {data,error}=await db.auth.signInWithPassword({email,password:pass});if(error)throw error;
-    const {data:profile,error:profileError}=await db.rpc("ensure_beyond_profile");if(profileError)throw profileError;
-    const username=profile?.username||data.user?.user_metadata?.username||email.split("@")[0]||"Beyond User";
-    ["beyondLoggedIn","beyondEmail","beyondUsername"].forEach(k=>localStorage.removeItem(k));sessionStorage.removeItem("beyondLoggedIn");
-    if(!remember){try{sessionStorage.setItem("beyondSessionPreference","session-only")}catch{}}else{try{sessionStorage.removeItem("beyondSessionPreference")}catch{}}
-    location.replace(getRedirect());
-  }catch(error){console.error(error);message.textContent=friendlyError(error);button.disabled=false;button.textContent="Log in"}
-}
-form.addEventListener("submit",e=>{e.preventDefault();login()});
-document.getElementById("showPassword")?.addEventListener("change",e=>{password.type=e.target.checked?"text":"password"});
-document.getElementById("forgotPassword")?.addEventListener("click",async e=>{e.preventDefault();const email=document.getElementById("email").value.trim().toLowerCase();if(!email){message.textContent="Enter your email first, then choose Forgot password.";return}try{if(!configured())throw new Error("Beyond Supabase is not configured yet.");const db=window.beyondDB||initBeyondDatabase();const {error}=await db.auth.resetPasswordForEmail(email,{redirectTo:new URL("reset-password.html",location.href).href});if(error)throw error;message.textContent="Password reset email sent. Check your inbox."}catch(error){message.textContent=error?.message||"Could not send the reset email."}});
+(() => {
+ const form=document.getElementById("loginForm"),message=document.getElementById("loginMessage"),button=document.getElementById("loginButton"),password=document.getElementById("password");
+ const configured=()=>typeof beyondDatabaseConfigured==="function"&&beyondDatabaseConfigured();
+ function getRedirect(){const raw=new URLSearchParams(location.search).get("redirect")||"index.html";if(raw.startsWith("//")||raw.includes("://")||raw.includes("\\")||raw.split(/[?#]/)[0].split("/").includes(".."))return "index.html";const allowed=/^[A-Za-z0-9._/?=&%-]+$/.test(raw);return allowed?raw:"index.html"}
+ function friendly(error){const m=String(error?.message||"Login failed. Please try again.");if(/invalid login credentials/i.test(m))return "That email and password do not match.";if(/email not confirmed/i.test(m))return "Please confirm your email using the link we sent you.";if(/fetch|network/i.test(m))return "Could not connect. Check your internet connection and try again.";return m}
+ function show(text){message.textContent=text}
+ form.addEventListener("submit",async e=>{e.preventDefault();show("");const email=document.getElementById("email").value.trim().toLowerCase(),pass=password.value; if(!email||!password.checkValidity()){show("Enter a valid email address and password.");return}button.disabled=true;button.textContent="Logging in…";
+ try{if(!configured())throw new Error("Supabase setup is not finished. Add your project URL and public anon/publishable key to supabase.js.");const db=window.beyondDB||initBeyondDatabase();if(!db)throw new Error("Beyond authentication could not start. Refresh and try again.");const {data,error}=await db.auth.signInWithPassword({email,password:pass});if(error)throw error;if(!data.user)throw new Error("Login could not be confirmed. Please try again.");const {error:profileError}=await db.rpc("ensure_beyond_profile");if(profileError)console.warn("Profile setup will retry on the next page:",profileError.message);["beyondLoggedIn","beyondEmail","beyondUsername"].forEach(k=>localStorage.removeItem(k));sessionStorage.removeItem("beyondLoggedIn");if(!document.getElementById("remember").checked)sessionStorage.setItem("beyondSessionPreference","session-only");else sessionStorage.removeItem("beyondSessionPreference");location.replace(getRedirect())}
+ catch(error){console.error("Beyond login:",error);show(friendly(error));button.disabled=false;button.textContent="Log in"}
+ });
+ document.getElementById("showPassword")?.addEventListener("click",e=>{const visible=password.type==="password";password.type=visible?"text":"password";e.currentTarget.textContent=visible?"Hide":"Show";e.currentTarget.setAttribute("aria-pressed",String(visible))});
+ document.getElementById("forgotPassword")?.addEventListener("click",async e=>{e.preventDefault();show("");const email=document.getElementById("email").value.trim().toLowerCase();if(!email){show("Enter your email address first.");document.getElementById("email").focus();return}try{if(!configured())throw new Error("Supabase setup is not finished yet.");const db=window.beyondDB||initBeyondDatabase();const {error}=await db.auth.resetPasswordForEmail(email,{redirectTo:new URL("reset-password.html",location.href).href});if(error)throw error;show("If this email is registered, a password reset link will arrive shortly.")}catch(error){show(error?.message||"Could not request a password reset.")}});
+})();
