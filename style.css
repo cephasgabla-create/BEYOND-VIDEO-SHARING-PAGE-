@@ -314,3 +314,30 @@ button{cursor:pointer}
   .video-actions{right:12px;bottom:24px}
   .beyond-feed-tabs{top:10px;z-index:130}
 }
+
+/* Final override: the home feed is a vertical stack, never a side-by-side grid. */
+@media (min-width: 1100px) {
+  body #feed {
+    display: flex !important;
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    grid-template-columns: none !important;
+    column-count: 1 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+  body #feed .video-card {
+    position: relative !important;
+    display: block !important;
+    float: none !important;
+    flex: 0 0 auto !important;
+    width: min(500px, calc(100% - 28px)) !important;
+    max-width: 500px !important;
+    height: calc(100vh - 20px) !important;
+    min-height: 620px !important;
+    margin: 10px auto !important;
+    scroll-snap-align: start !important;
+  }
+}
