@@ -341,3 +341,9 @@ button{cursor:pointer}
     scroll-snap-align: start !important;
   }
 }
+
+
+/* Requested home-feed cleanup: remove the status/post composer from the feed view. */
+.post-composer,
+#postComposer,
+[data-role="post-composer"]{display:none!important;}
