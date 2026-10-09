@@ -1,6 +1,8 @@
 const input=document.getElementById("videoInput");
 const preview=document.getElementById("preview");
 let file=null;
+window.beyondSelectedVideo=null;
+window.beyondSelectedPhotos=[];
 
 async function requireBeyondUploadUser(){
   try{
@@ -22,7 +24,7 @@ requireBeyondUploadUser();
 
 input.onchange=function(){
   file=input.files[0];
-  if(file) preview.src=URL.createObjectURL(file);
+  if(file){ window.beyondSelectedVideo=file; preview.src=URL.createObjectURL(file); }
 };
 
 function db(){
@@ -42,6 +44,7 @@ function db(){
 async function publishVideo(){
   const authUser=await requireBeyondUploadUser();
   if(!authUser && localStorage.getItem("beyondLoggedIn")!=="true")return;
+  file=window.beyondSelectedVideo||file;
   if(!file){alert("Choose a video first");return;}
 
   const caption=document.getElementById("caption").value.trim();
@@ -118,6 +121,59 @@ async function uploadVideoToSupabase(file,caption="",hashtags=""){
     throw dbError;
   }
   return row;
+}
+
+
+async function publishPhotos(){
+  const authUser=await requireBeyondUploadUser();
+  if(!authUser && localStorage.getItem("beyondLoggedIn")!=="true")return;
+  const files=Array.from(window.beyondSelectedPhotos||[]);
+  if(!files.length){alert("Choose at least one photo first.");return;}
+  const caption=document.getElementById("caption").value.trim();
+  const hashtags=document.getElementById("hashtags").value.trim();
+  try{
+    const client=window.beyondDB||initBeyondDatabase();
+    if(client){
+      const {data:{user}}=await client.auth.getUser();
+      if(user){
+        const rows=[];
+        for(const photo of files) rows.push(await uploadPhotoToSupabase(photo,caption,hashtags));
+        localStorage.setItem("beyondLastUploadedPhotos",JSON.stringify(rows));
+        alert(rows.length===1?"Photo published to Beyond.":rows.length+" photos published to Beyond.");
+        location.href="index.html";
+        return;
+      }
+    }
+  }catch(error){
+    console.error("Supabase photo upload failed:",error);
+    alert("Photo upload failed: "+error.message);
+    return;
+  }
+  alert("Photo publishing requires a configured Supabase account and Storage bucket. Please sign in with Supabase and try again.");
+}
+async function uploadPhotoToSupabase(file,caption="",hashtags=""){
+  const client=window.beyondDB||initBeyondDatabase();
+  if(!client)throw new Error("Configure Supabase in supabase.js first.");
+  const {data:{user}}=await client.auth.getUser();
+  if(!user)throw new Error("Please log in with Beyond Supabase Auth before uploading photos.");
+  if(!file.type.startsWith("image/"))throw new Error("Please choose an image file.");
+  const ext=(file.name.split(".").pop()||"jpg").toLowerCase();
+  const path=user.id+"/photos/"+crypto.randomUUID()+"."+ext;
+  const bucket="videos";
+  const {error:storageError}=await client.storage.from(bucket).upload(path,file,{contentType:file.type,upsert:false});
+  if(storageError)throw storageError;
+  const {data:publicData}=client.storage.from(bucket).getPublicUrl(path);
+  const photoUrl=publicData.publicUrl;
+  const {data:row,error:dbError}=await client.from("videos").insert({
+    user_id:user.id,video_url:photoUrl,caption,hashtags,status:"published",views_count:0,likes_count:0
+  }).select().single();
+  if(dbError){await client.storage.from(bucket).remove([path]);throw dbError;}
+  return {...row,media_type:"photo",photo_url:photoUrl};
+}
+async function publishContent(){
+  const mode=window.beyondUploadMode||"video";
+  if(mode==="photo")return publishPhotos();
+  return publishVideo();
 }
 
 async function uploadBeyondVideoWithDatabase(file,caption="",hashtags=""){
