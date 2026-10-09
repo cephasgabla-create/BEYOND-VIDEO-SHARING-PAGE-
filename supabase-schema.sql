@@ -1082,8 +1082,8 @@ begin
        or char_length(desired_username) > 30
        or desired_username !~ '^[A-Za-z0-9._-]+
 
-revoke all on function public.ensure_beyond_profile() from public;
-grant execute on function public.ensure_beyond_profile() to authenticated;
+revoke all on function public.ensure_beyond_profile(text, text) from public;
+grant execute on function public.ensure_beyond_profile(text, text) to authenticated;
 
 -- Keep profile ownership locked to the authenticated user.
 drop policy if exists "users update their profile" on public.profiles;
