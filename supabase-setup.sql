@@ -155,21 +155,20 @@ begin
   end loop;
 end $$;
 
--- Create a profile for the currently authenticated user. These RPCs are used
--- by Beyond sign-up and login; they never accept a different user's auth ID.
+-- Create a profile for the currently authenticated user.
+-- These invoker-rights RPCs can only insert/update the row permitted by RLS.
 create or replace function public.ensure_beyond_profile(
   requested_username text,
   requested_display_name text
 )
 returns jsonb
 language plpgsql
-security definer
 set search_path = public, auth
-as $
+as $profile_body$
 declare
   current_user_id uuid := auth.uid();
-  user_email text;
-  user_metadata jsonb;
+  user_email text := auth.jwt() ->> 'email';
+  user_metadata jsonb := coalesce(auth.jwt() -> 'user_metadata', '{}'::jsonb);
   base_username text;
   safe_username text;
   chosen_display_name text;
@@ -177,11 +176,6 @@ begin
   if current_user_id is null then
     raise exception 'Authentication is required to create a profile.';
   end if;
-
-  select email, raw_user_meta_data
-    into user_email, user_metadata
-    from auth.users
-   where id = current_user_id;
 
   base_username := lower(coalesce(
     nullif(trim(requested_username), ''),
@@ -216,16 +210,15 @@ begin
 
   return jsonb_build_object('id', current_user_id, 'username', safe_username);
 end;
-$;
+$profile_body$;
 
 create or replace function public.ensure_beyond_profile()
 returns jsonb
 language sql
-security definer
 set search_path = public, auth
-as $
+as $profile_empty_body$
   select public.ensure_beyond_profile(null::text, null::text);
-$;
+$profile_empty_body$;
 
 revoke all on function public.ensure_beyond_profile(text, text) from public;
 revoke all on function public.ensure_beyond_profile() from public;
