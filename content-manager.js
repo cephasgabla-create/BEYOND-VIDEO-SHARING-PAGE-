@@ -273,8 +273,9 @@ function openEditor(id){
   document.getElementById("editVisibility").value=v.visibility||"public";
   document.getElementById("editCommentsEnabled").checked=v.commentsEnabled!==false;
   document.getElementById("editStatus").value=v.status||"published";
-  const video=document.getElementById("editVideoPreview");
-  video.src=getVideoSource(v);video.load();
+  const video=document.getElementById("editVideoPreview"),image=document.getElementById("editImagePreview"),isPhoto=detectMediaType(v.mediaType,v.videoUrl)==="photo",src=getVideoSource(v);
+  video.hidden=isPhoto;image.hidden=!isPhoto;video.pause();
+  if(isPhoto){video.removeAttribute("src");video.load();image.src=src||""}else{image.removeAttribute("src");video.src=src;video.load()}
   updateCaptionCount();document.getElementById("editModal").classList.add("show");
 }
 function closeEditor(){
