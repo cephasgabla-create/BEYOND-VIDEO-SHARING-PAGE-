@@ -3,7 +3,7 @@
    2. Put your project URL and anon key below.
    3. Load this file before pages that use database features.
 */
-sb_publishable_4znRR9ZXLq3INsKauKjqQg_7bkg6A9_ = "https://icliwidwxhulpbyznxum.supabase.co";
+const BEYOND_SUPABASE_URL = "https://icliwidwxhulpbyznxum.supabase.co";
 const BEYOND_SUPABASE_ANON_KEY = "sb_publishable_4znRR9ZXLq3INsKauKjqQg_7bkg6A9_";
 
 let beyondDB = null;
