@@ -1,4 +1,4 @@
-name: Deploy Beyond to GitHub Pages
+name: Validate Beyond Site
 
 on:
   push:
@@ -8,28 +8,17 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: beyond-pages
+  group: beyond-validation
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  validate:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
     steps:
       - name: Checkout Beyond
         uses: actions/checkout@v4
-
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - name: Validate required Beyond files
         shell: bash
@@ -160,22 +149,3 @@ jobs:
           }
           console.log('All local CSS url() references resolve.');
           NODE
-
-      - name: Prepare static site
-        shell: bash
-        run: |
-          set -euo pipefail
-          touch .nojekyll
-          test -f .nojekyll
-
-      - name: Upload Beyond site
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: .
-
-      - name: Deploy Beyond
-        id: deployment
-        uses: actions/deploy-pages@v4
-# Deployment validation: keep all static-site checks enabled.
-# Syntax fix verification.
-# Audience analytics validation.
