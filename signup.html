@@ -11,11 +11,17 @@
 <button class="signup-method" type="button" data-method="apple"><span class="social-icon apple">●</span><span>Continue with Apple</span></button></div>
 <p class="signup-terms">By signing up, you agree to our <a href="terms.html">Terms of Service</a> and acknowledge that you have read our <a href="privacy-safety.html">Privacy Policy</a>.</p><p id="signupMessage" class="message" role="status" aria-live="polite"></p></section>
 <footer class="signup-footer"><span>Already have an account?</span> <a href="login.html">Log in</a></footer></main>
-<div id="signupEmailModal" class="signup-modal" hidden><div class="signup-modal-card" role="dialog" aria-modal="true" aria-labelledby="signupFormTitle"><button id="closeSignupModal" class="modal-close" type="button" aria-label="Close form">×</button><h2 id="signupFormTitle">Create your Beyond account</h2><p class="modal-subtitle">Use your email to get started.</p>
+<div id="signupEmailModal" class="signup-modal" hidden><div class="signup-modal-card" role="dialog" aria-modal="true" aria-labelledby="signupFormTitle"><button id="closeSignupModal" class="modal-close" type="button" aria-label="Close form">×</button><h2 id="signupFormTitle">Create your Beyond account</h2><p class="modal-subtitle">Choose how you want to create your account.</p><div class="signup-mode-switch"><button id="showEmailSignup" type="button" aria-pressed="true">Use email</button><button id="showPhoneSignup" type="button" aria-pressed="false">Use phone</button></div>
 <form id="signupForm" novalidate>
 <label for="username">Username</label><input id="username" name="username" type="text" minlength="3" maxlength="30" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="yourname" required><small class="hint">3–30 letters, numbers, dots, underscores or hyphens.</small>
 <label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" required>
 <label for="password">Password</label><div class="password-wrap"><input id="password" name="password" type="password" minlength="8" autocomplete="new-password" required><button class="password-toggle" type="button" data-toggle="password" aria-pressed="false">Show</button></div><small class="hint">Use at least 8 characters.</small>
 <label for="confirmPassword">Confirm password</label><div class="password-wrap"><input id="confirmPassword" name="confirmPassword" type="password" minlength="8" autocomplete="new-password" required><button class="password-toggle" type="button" data-toggle="confirmPassword" aria-pressed="false">Show</button></div>
-<p id="signupFormMessage" class="message" role="status" aria-live="polite"></p><button id="signupButton" class="submit" type="submit">Create account</button></form></div></div>
+<p id="signupFormMessage" class="message" role="status" aria-live="polite"></p><button id="signupButton" class="submit" type="submit">Create account</button></form>
+<form id="phoneSignupForm" hidden novalidate>
+<label for="phoneUsername">Username</label><input id="phoneUsername" type="text" minlength="3" maxlength="30" autocomplete="username" placeholder="yourname" required>
+<label for="phoneNumber">Phone number</label><input id="phoneNumber" type="tel" autocomplete="tel" inputmode="tel" placeholder="+233…" required><small class="hint">Include your country code, for example +233.</small>
+<div id="phoneCodeWrap" hidden><label for="phoneCode">SMS verification code</label><input id="phoneCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="Enter code"></div>
+<p id="phoneSignupMessage" class="message" role="status" aria-live="polite"></p><button id="phoneSignupButton" class="submit" type="submit">Send verification code</button>
+</form></div></div>
 <script src="signup.js"></script></body></html>
