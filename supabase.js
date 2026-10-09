@@ -9,6 +9,7 @@ const BEYOND_SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
 let beyondDB = null;
 
 function initBeyondDatabase(){
+  if(beyondDB) return beyondDB;
   if(!window.supabase || typeof window.supabase.createClient !== "function"){
     console.warn("Supabase library is not loaded yet.");
     return null;
