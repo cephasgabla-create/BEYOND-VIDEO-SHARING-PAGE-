@@ -34,3 +34,10 @@ body.modal-open{overflow:hidden}
 .signup-method .social-icon.apple{font-size:0;position:relative}
 .signup-method .social-icon.apple:before{content:"";width:17px;height:19px;border-radius:48% 48% 45% 45%;background:#f7f7f8;display:block;margin:auto}
 .signup-method .social-icon.apple:after{content:"";position:absolute;top:0;left:14px;width:7px;height:4px;border-radius:7px 0;transform:rotate(-35deg);background:#f7f7f8}
+
+.signup-mode-switch{display:flex;gap:8px;margin:12px 0 18px;padding:4px;background:#29292d;border-radius:12px}
+.signup-mode-switch button{flex:1;border:0;border-radius:9px;padding:10px;background:transparent;color:#aaa;font-weight:700;cursor:pointer}
+.signup-mode-switch button[aria-pressed="true"]{background:#45454b;color:#fff}
+#phoneSignupForm[hidden],#signupForm[hidden]{display:none!important}
+#phoneSignupForm input{width:100%;min-width:0;padding:14px 15px;border:1px solid #33343a;border-radius:12px;background:#19191d;color:#fff;outline:none;font-size:15px}
+#phoneSignupForm input:focus{border-color:#ff315b;box-shadow:0 0 0 3px #ff315b1f}
