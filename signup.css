@@ -27,3 +27,10 @@ body.signup-choice-page{background:#1f1f1f;color:#f7f7f7;font-family:Arial,Helve
 .signup-modal-card .submit{margin-top:4px}
 body.modal-open{overflow:hidden}
 @media(max-width:480px){.signup-shell{padding:56px 18px 0}.signup-choice h1{margin-bottom:34px}.signup-method{min-height:62px;font-size:15px}.signup-terms{margin-top:42px}.signup-footer{margin:0 -18px;font-size:16px;padding:24px 8px}.signup-modal-card{padding:28px 20px 22px}}
+
+/* Signup chooser details matching the reference screen */
+.signup-method .last-used{position:absolute;right:0;top:-10px;background:#25d9e8;color:#102126;padding:4px 12px;border-radius:16px;font-size:12px;font-weight:700;white-space:nowrap}
+.signup-method:focus-visible,.close-signup:focus-visible,.signup-footer a:focus-visible{outline:2px solid #25d9e8;outline-offset:3px}
+.signup-method .social-icon.apple{font-size:0;position:relative}
+.signup-method .social-icon.apple:before{content:"";width:17px;height:19px;border-radius:48% 48% 45% 45%;background:#f7f7f8;display:block;margin:auto}
+.signup-method .social-icon.apple:after{content:"";position:absolute;top:0;left:14px;width:7px;height:4px;border-radius:7px 0;transform:rotate(-35deg);background:#f7f7f8}
