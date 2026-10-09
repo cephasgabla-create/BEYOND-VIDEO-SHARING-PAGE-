@@ -1,11 +1,36 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><meta name="theme-color" content="#0b0b0d"><title>Log In - Beyond</title><link rel="stylesheet" href="login.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="supabase.js"></script></head>
-<body><main class="auth-page"><section class="auth-card" aria-labelledby="loginTitle">
-<a class="brand" href="index.html" aria-label="Beyond home">Beyond</a><h1 id="loginTitle">Welcome back</h1><p class="subtitle">Log in to continue creating and discovering.</p>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><meta name="theme-color" content="#1f1f1f">
+<title>Log in to Beyond</title><link rel="stylesheet" href="login.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="supabase.js"></script>
+</head>
+<body>
+<main class="login-screen">
+<a class="close-login" href="index.html" aria-label="Close login">×</a>
+<section class="login-panel" aria-labelledby="loginTitle">
+<a class="brand" href="index.html" aria-label="Beyond home"><span class="brand-mark">B</span>Beyond</a>
+<h1 id="loginTitle">Log in to Beyond</h1>
+<div class="login-options" id="loginOptions">
+<button class="provider-button" id="qrLogin" type="button"><span class="provider-icon qr-icon" aria-hidden="true">▦</span><span>Use QR code</span></button>
+<button class="provider-button" id="emailLoginChoice" type="button"><span class="provider-icon user-icon" aria-hidden="true">●</span><span>Use email and password</span></button>
+<button class="provider-button" data-provider="facebook" type="button"><span class="provider-icon facebook-icon" aria-hidden="true">f</span><span>Continue with Facebook</span></button>
+<button class="provider-button" data-provider="google" type="button"><span class="provider-icon google-icon" aria-hidden="true">G</span><span>Continue with Google</span><span class="last-used">Last used</span></button>
+<button class="provider-button" data-provider="apple" type="button"><span class="provider-icon apple-icon" aria-hidden="true">●</span><span>Continue with Apple</span></button>
+</div>
+<div class="email-login" id="emailLogin" hidden>
+<button class="back-options" id="backOptions" type="button">← All login options</button>
 <form id="loginForm" novalidate>
-<label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" required>
-<label for="password">Password</label><div class="password-wrap"><input id="password" name="password" type="password" autocomplete="current-password" required><button class="password-toggle" id="showPassword" type="button" aria-pressed="false">Show</button></div>
-<div class="form-row"><label class="check"><input id="remember" type="checkbox" checked><span>Remember me</span></label><a id="forgotPassword" class="forgot" href="#">Forgot password?</a></div>
+<label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" required placeholder="Enter your email">
+<label for="password">Password</label><div class="password-wrap"><input id="password" name="password" type="password" autocomplete="current-password" required placeholder="Enter your password"><button class="password-toggle" id="showPassword" type="button" aria-pressed="false">Show</button></div>
+<div class="form-row"><span></span><a id="forgotPassword" class="forgot" href="#">Forgot password?</a></div>
 <p id="loginMessage" class="message" aria-live="polite" role="status"></p><button id="loginButton" class="submit" type="submit">Log in</button>
-</form><p class="switch">New to Beyond? <a href="signup.html">Create an account</a></p><a class="back" href="index.html">← Back to Beyond</a>
-</section></main><script src="login.js"></script></body></html>
+</form>
+</div>
+<p id="socialMessage" class="social-message" aria-live="polite" role="status"></p>
+<p class="terms">By continuing with an account located in <strong>Ghana</strong>, you agree to our <a href="terms.html">Terms of Service</a> and acknowledge that you have read our <a href="privacy.html">Privacy Policy</a>.</p>
+</section>
+<footer class="signup-footer"><span>Don’t have an account?</span> <a href="signup.html">Sign up</a></footer>
+</main>
+<script src="login.js"></script>
+</body></html>
