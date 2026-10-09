@@ -62,7 +62,7 @@
         <section class="post-details" id="postDetails" hidden>
           <label for="caption">Caption</label><textarea id="caption" maxlength="150" placeholder="Describe your video..."></textarea>
           <label for="hashtags">Hashtags</label><input id="hashtags" placeholder="#Beyond #ForYou">
-          <div class="publish-row"><button class="secondary-btn" type="button" onclick="location.href='index.html'">Cancel</button><button class="publish-btn" type="button" onclick="publishVideo()">Post</button></div>
+          <div class="publish-row"><button class="secondary-btn" type="button" onclick="location.href='index.html'">Cancel</button><button class="publish-btn" type="button" onclick="publishContent()">Post</button></div>
         </section>
       </div>
     </section>
@@ -76,15 +76,15 @@
     const empty=document.getElementById('emptyState'), previewState=document.getElementById('previewState');
     const photoPreview=document.getElementById('photoPreview'), details=document.getElementById('postDetails');
     const title=document.getElementById('dropTitle'), selectedName=document.getElementById('selectedFileName');
-    let mode='video', photoFiles=[];
+    let mode='video', photoFiles=[]; window.beyondUploadMode=mode;
     function setMode(next){
-      mode=next; const video=next==='video';
+      mode=next; window.beyondUploadMode=mode; const video=next==='video';
       videoTab.classList.toggle('selected',video); photoTab.classList.toggle('selected',!video);
       videoTab.setAttribute('aria-selected',String(video)); photoTab.setAttribute('aria-selected',String(!video));
       dropZone.setAttribute('aria-label',video?'Select video to upload':'Select photos to upload');
       title.textContent=video?'Select video to upload':'Select photos to upload';
       selectBtn.textContent=video?'Select video':'Select photos';
-      videoInput.value=''; photoInput.value=''; photoFiles=[];
+      videoInput.value=''; photoInput.value=''; photoFiles=[];window.beyondSelectedPhotos=[];window.beyondSelectedVideo=null;
       if(window.URL && document.getElementById('preview').src.startsWith('blob:')) URL.revokeObjectURL(document.getElementById('preview').src);
       document.getElementById('preview').removeAttribute('src'); document.getElementById('preview').load();
       empty.hidden=false; previewState.hidden=true; photoPreview.hidden=true; photoPreview.innerHTML=''; details.hidden=true;
@@ -101,7 +101,7 @@
       document.getElementById('preview').src=URL.createObjectURL(f);
     });
     photoInput.addEventListener('change',()=>{
-      photoFiles=Array.from(photoInput.files||[]);if(!photoFiles.length)return;
+      photoFiles=Array.from(photoInput.files||[]).filter(f=>f.type.startsWith('image/'));window.beyondSelectedPhotos=photoFiles;if(!photoFiles.length)return;
       photoPreview.innerHTML='';photoFiles.forEach(f=>{if(!f.type.startsWith('image/'))return;const img=document.createElement('img');img.alt=f.name;img.src=URL.createObjectURL(f);photoPreview.appendChild(img)});
       empty.hidden=true;previewState.hidden=true;photoPreview.hidden=false;details.hidden=false;
     });
