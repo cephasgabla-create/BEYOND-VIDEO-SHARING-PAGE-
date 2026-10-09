@@ -1,12 +1,21 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><meta name="theme-color" content="#0b0b0d"><title>Sign Up - Beyond</title><link rel="stylesheet" href="signup.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="supabase.js"></script></head>
-<body><main class="auth-page"><section class="auth-card" aria-labelledby="signupTitle">
-<a class="brand" href="index.html" aria-label="Beyond home">Beyond</a><h1 id="signupTitle">Create your account</h1><p class="subtitle">Join Beyond and start sharing your moments.</p>
+<body class="signup-choice-page">
+<main class="signup-shell"><button class="close-signup" type="button" aria-label="Close and return to Beyond" onclick="location.href='index.html'">×</button>
+<section class="signup-choice" aria-labelledby="signupTitle"><h1 id="signupTitle">Sign up for Beyond</h1>
+<div class="signup-methods">
+<button class="signup-method" type="button" data-method="qr"><span class="method-icon">▦</span><span>Use QR code</span></button>
+<button class="signup-method" type="button" data-method="email"><span class="method-icon">●</span><span>Use phone or email</span></button>
+<button class="signup-method" type="button" data-method="facebook"><span class="social-icon facebook">f</span><span>Continue with Facebook</span></button>
+<button class="signup-method" type="button" data-method="google"><span class="social-icon google">G</span><span>Continue with Google</span></button>
+<button class="signup-method" type="button" data-method="apple"><span class="social-icon apple">●</span><span>Continue with Apple</span></button></div>
+<p class="signup-terms">By signing up, you agree to our <a href="terms.html">Terms of Service</a> and acknowledge that you have read our <a href="privacy-safety.html">Privacy Policy</a>.</p><p id="signupMessage" class="message" role="status" aria-live="polite"></p></section>
+<footer class="signup-footer"><span>Already have an account?</span> <a href="login.html">Log in</a></footer></main>
+<div id="signupEmailModal" class="signup-modal" hidden><div class="signup-modal-card" role="dialog" aria-modal="true" aria-labelledby="signupFormTitle"><button id="closeSignupModal" class="modal-close" type="button" aria-label="Close form">×</button><h2 id="signupFormTitle">Create your Beyond account</h2><p class="modal-subtitle">Use your email to get started.</p>
 <form id="signupForm" novalidate>
-<label for="username">Username</label><input id="username" name="username" type="text" minlength="3" maxlength="30" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="yourname" required><small class="hint">3–30 characters: letters, numbers, dots, underscores or hyphens.</small>
+<label for="username">Username</label><input id="username" name="username" type="text" minlength="3" maxlength="30" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="yourname" required><small class="hint">3–30 letters, numbers, dots, underscores or hyphens.</small>
 <label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" required>
 <label for="password">Password</label><div class="password-wrap"><input id="password" name="password" type="password" minlength="8" autocomplete="new-password" required><button class="password-toggle" type="button" data-toggle="password" aria-pressed="false">Show</button></div><small class="hint">Use at least 8 characters.</small>
 <label for="confirmPassword">Confirm password</label><div class="password-wrap"><input id="confirmPassword" name="confirmPassword" type="password" minlength="8" autocomplete="new-password" required><button class="password-toggle" type="button" data-toggle="confirmPassword" aria-pressed="false">Show</button></div>
-<p id="signupMessage" class="message" aria-live="polite" role="status"></p><button id="signupButton" class="submit" type="submit">Create account</button>
-</form><p class="switch">Already have an account? <a href="login.html">Log in</a></p><a class="back" href="index.html">← Back to Beyond</a>
-</section></main><script src="signup.js"></script></body></html>
+<p id="signupFormMessage" class="message" role="status" aria-live="polite"></p><button id="signupButton" class="submit" type="submit">Create account</button></form></div></div>
+<script src="signup.js"></script></body></html>
