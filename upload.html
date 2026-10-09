@@ -1,1 +1,119 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Upload - Beyond</title><link rel="stylesheet" href="upload.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="supabase.js"></script><script src="auth-guard.js"></script></head><body><main class="upload"><h1>Upload to Beyond</h1><input id="videoInput" type="file" accept="video/*"><video id="preview" controls></video><textarea id="caption" maxlength="150" placeholder="Caption"></textarea><input id="hashtags" placeholder="#Beyond #ForYou"><button onclick="publishVideo()">Post</button><button onclick="location.href='index.html'">Back</button></main><script src="upload.js"></script><div id="goLiveModal" class="golive-modal"><div class="golive-card"><button class="golive-close" onclick="closeGoLive()">✕</button><span class="eyebrow">BEYOND LIVE</span><h2>Start a Live</h2><p>Set up your live room before you go on air.</p><label>Live title</label><input id="liveTitleInput" maxlength="80" placeholder="What are you going live about?"><label>Category</label><select id="liveCategory"><option>Just Chatting</option><option>Music</option><option>Gaming</option><option>Sports</option><option>Creative</option></select><label class="check-row"><input type="checkbox" id="liveChatEnabled" checked> Enable live chat</label><button class="start-live-btn" onclick="startConfiguredLive()">🔴 Start Live</button></div></div></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <title>Upload - Beyond Studio</title>
+  <link rel="stylesheet" href="upload.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script src="auth-guard.js"></script>
+</head>
+<body>
+  <header class="studio-header">
+    <a class="studio-brand" href="index.html" aria-label="Beyond home"><span class="brand-symbol">B</span><span>Beyond <small>STUDIO</small></span></a>
+    <a class="studio-avatar" href="profile.html" aria-label="Open profile">B</a>
+  </header>
+  <aside class="studio-sidebar">
+    <button class="sidebar-upload active" type="button" aria-current="page"><span>⊞</span> Upload <span class="chevron">⌄</span></button>
+    <p class="side-label">MANAGE</p>
+    <a href="index.html"><span>⌂</span>Home</a>
+    <a href="creator-studio.html"><span>▣</span>Posts</a>
+    <a href="creator-studio.html"><span>▧</span>View analytics</a>
+    <a href="index.html"><span>☏</span>Comments</a>
+    <p class="side-label">TOOLS</p>
+    <a href="discover.html"><span>♧</span>Inspiration</a>
+    <a href="creator-studio.html"><span>ⓢ</span>Monetisation</a>
+    <a href="creator-studio.html"><span>▣</span>Creator Academy</a>
+    <a href="discover.html"><span>♫</span>Royalty-free sounds</a>
+    <p class="side-label">OTHERS</p>
+    <a href="mailto:feedback@beyond.example"><span>✉</span>Share feedback</a>
+  </aside>
+  <main class="studio-main">
+    <section class="upload-workspace" aria-label="Upload content">
+      <div class="upload-tabs" role="tablist" aria-label="Content type">
+        <button class="upload-tab selected" id="videoTab" type="button" role="tab" aria-selected="true">Videos</button>
+        <button class="upload-tab" id="photoTab" type="button" role="tab" aria-selected="false">Photos</button>
+      </div>
+      <div class="upload-content">
+        <input id="videoInput" class="visually-hidden" type="file" accept="video/*">
+        <input id="photoInput" class="visually-hidden" type="file" accept="image/*" multiple>
+        <div id="dropZone" class="drop-zone" tabindex="0" role="button" aria-label="Select video to upload">
+          <div id="emptyState" class="empty-state">
+            <div class="upload-art" aria-hidden="true"><span>▶</span><b>↑</b></div>
+            <h1 id="dropTitle">Select video to upload</h1>
+            <p>Or drag and drop it here</p>
+            <button class="select-file-btn" id="selectFileBtn" type="button">Select video</button>
+            <p class="drop-hint">Choose a video from your device to get started</p>
+          </div>
+          <div id="previewState" class="preview-state" hidden>
+            <video id="preview" controls playsinline></video>
+            <div class="preview-meta"><strong id="selectedFileName">Video selected</strong><button id="changeFileBtn" type="button">Choose another</button></div>
+          </div>
+          <div id="photoPreview" class="photo-preview" hidden></div>
+        </div>
+        <div class="upload-guidelines">
+          <div class="guideline"><span class="guideline-icon">▣</span><div><strong>Size and duration</strong><p>Maximum size: 30 GB, video duration: 60 minutes.</p></div></div>
+          <div class="guideline"><span class="guideline-icon">▤</span><div><strong>File formats</strong><p>Recommended: “.mp4”. Other major formats are supported.</p></div></div>
+          <div class="guideline"><span class="guideline-icon">▣</span><div><strong>Video resolutions</strong><p>High-resolution recommended: 1080p, 1440p, 4K.</p></div></div>
+          <div class="guideline"><span class="guideline-icon">▱</span><div><strong>Aspect ratios</strong><p>Recommended: 16:9 for landscape, 9:16 for vertical.</p></div></div>
+        </div>
+        <section class="post-details" id="postDetails" hidden>
+          <label for="caption">Caption</label><textarea id="caption" maxlength="150" placeholder="Describe your video..."></textarea>
+          <label for="hashtags">Hashtags</label><input id="hashtags" placeholder="#Beyond #ForYou">
+          <div class="publish-row"><button class="secondary-btn" type="button" onclick="location.href='index.html'">Cancel</button><button class="publish-btn" type="button" onclick="publishVideo()">Post</button></div>
+        </section>
+      </div>
+    </section>
+  </main>
+  <script src="upload.js"></script>
+  <script>
+  (function(){
+    const videoTab=document.getElementById('videoTab'), photoTab=document.getElementById('photoTab');
+    const videoInput=document.getElementById('videoInput'), photoInput=document.getElementById('photoInput');
+    const dropZone=document.getElementById('dropZone'), selectBtn=document.getElementById('selectFileBtn');
+    const empty=document.getElementById('emptyState'), previewState=document.getElementById('previewState');
+    const photoPreview=document.getElementById('photoPreview'), details=document.getElementById('postDetails');
+    const title=document.getElementById('dropTitle'), selectedName=document.getElementById('selectedFileName');
+    let mode='video', photoFiles=[];
+    function setMode(next){
+      mode=next; const video=next==='video';
+      videoTab.classList.toggle('selected',video); photoTab.classList.toggle('selected',!video);
+      videoTab.setAttribute('aria-selected',String(video)); photoTab.setAttribute('aria-selected',String(!video));
+      dropZone.setAttribute('aria-label',video?'Select video to upload':'Select photos to upload');
+      title.textContent=video?'Select video to upload':'Select photos to upload';
+      selectBtn.textContent=video?'Select video':'Select photos';
+      videoInput.value=''; photoInput.value=''; photoFiles=[];
+      if(window.URL && document.getElementById('preview').src.startsWith('blob:')) URL.revokeObjectURL(document.getElementById('preview').src);
+      document.getElementById('preview').removeAttribute('src'); document.getElementById('preview').load();
+      empty.hidden=false; previewState.hidden=true; photoPreview.hidden=true; photoPreview.innerHTML=''; details.hidden=true;
+    }
+    videoTab.addEventListener('click',()=>setMode('video')); photoTab.addEventListener('click',()=>setMode('photo'));
+    selectBtn.addEventListener('click',e=>{e.stopPropagation();(mode==='video'?videoInput:photoInput).click()});
+    dropZone.addEventListener('click',e=>{if(e.target.closest('button')||e.target.closest('video'))return;(mode==='video'?videoInput:photoInput).click()});
+    dropZone.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();(mode==='video'?videoInput:photoInput).click()}});
+    document.getElementById('changeFileBtn').addEventListener('click',()=>videoInput.click());
+    videoInput.addEventListener('change',()=>{
+      const f=videoInput.files&&videoInput.files[0]; if(!f)return;
+      if(!f.type.startsWith('video/')){alert('Please choose a video file.');videoInput.value='';return;}
+      selectedName.textContent=f.name; empty.hidden=true; previewState.hidden=false; photoPreview.hidden=true; details.hidden=false;
+      document.getElementById('preview').src=URL.createObjectURL(f);
+    });
+    photoInput.addEventListener('change',()=>{
+      photoFiles=Array.from(photoInput.files||[]);if(!photoFiles.length)return;
+      photoPreview.innerHTML='';photoFiles.forEach(f=>{if(!f.type.startsWith('image/'))return;const img=document.createElement('img');img.alt=f.name;img.src=URL.createObjectURL(f);photoPreview.appendChild(img)});
+      empty.hidden=true;previewState.hidden=true;photoPreview.hidden=false;details.hidden=false;
+    });
+    ['dragenter','dragover'].forEach(name=>dropZone.addEventListener(name,e=>{e.preventDefault();dropZone.classList.add('dragging')}));
+    ['dragleave','drop'].forEach(name=>dropZone.addEventListener(name,e=>{e.preventDefault();dropZone.classList.remove('dragging')}));
+    dropZone.addEventListener('drop',e=>{
+      const files=Array.from(e.dataTransfer.files||[]);if(!files.length)return;
+      if(mode==='video'){const f=files.find(x=>x.type.startsWith('video/'));if(!f){alert('Drop a video file here.');return}const transfer=new DataTransfer();transfer.items.add(f);videoInput.files=transfer.files;videoInput.dispatchEvent(new Event('change'))}
+      else{const transfer=new DataTransfer();files.filter(x=>x.type.startsWith('image/')).forEach(x=>transfer.items.add(x));photoInput.files=transfer.files;photoInput.dispatchEvent(new Event('change'))}
+    });
+  })();
+  </script>
+  <div id="goLiveModal" class="golive-modal"><div class="golive-card"><button class="golive-close" onclick="closeGoLive()">✕</button><span class="eyebrow">BEYOND LIVE</span><h2>Start a Live</h2><p>Set up your live room before you go on air.</p><label>Live title</label><input id="liveTitleInput" maxlength="80" placeholder="What are you going live about?"><label>Category</label><select id="liveCategory"><option>Just Chatting</option><option>Music</option><option>Gaming</option><option>Sports</option><option>Creative</option></select><label class="check-row"><input type="checkbox" id="liveChatEnabled" checked> Enable live chat</label><button class="start-live-btn" onclick="startConfiguredLive()">🔴 Start Live</button></div></div>
+</body>
+</html>
