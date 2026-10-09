@@ -49,8 +49,12 @@ create table if not exists public.comments (
   video_id uuid not null references public.videos(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
   content text not null check (char_length(trim(content)) between 1 and 1000),
+  hidden_by_creator boolean not null default false,
   created_at timestamptz not null default now()
 );
+
+-- Migrate existing Beyond databases without deleting current comments.
+alter table public.comments add column if not exists hidden_by_creator boolean not null default false;
 
 create index if not exists videos_published_created_idx
   on public.videos (created_at desc) where status = 'published';
@@ -150,6 +154,83 @@ begin
     end if;
   end loop;
 end $$;
+
+-- Create a profile for the currently authenticated user. These RPCs are used
+-- by Beyond sign-up and login; they never accept a different user's auth ID.
+create or replace function public.ensure_beyond_profile(
+  requested_username text,
+  requested_display_name text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, auth
+as $
+declare
+  current_user_id uuid := auth.uid();
+  user_email text;
+  user_metadata jsonb;
+  base_username text;
+  safe_username text;
+  chosen_display_name text;
+begin
+  if current_user_id is null then
+    raise exception 'Authentication is required to create a profile.';
+  end if;
+
+  select email, raw_user_meta_data
+    into user_email, user_metadata
+    from auth.users
+   where id = current_user_id;
+
+  base_username := lower(coalesce(
+    nullif(trim(requested_username), ''),
+    nullif(user_metadata ->> 'username', ''),
+    split_part(coalesce(user_email, 'beyond_user'), '@', 1)
+  ));
+  safe_username := left(regexp_replace(base_username, '[^a-z0-9._-]', '', 'g'), 30);
+
+  if length(safe_username) < 3 then
+    safe_username := 'user_' || substr(replace(current_user_id::text, '-', ''), 1, 8);
+  end if;
+
+  if exists (
+    select 1 from public.profiles
+     where username = safe_username and id <> current_user_id
+  ) then
+    safe_username := left(safe_username, 21) || '_' ||
+      substr(replace(current_user_id::text, '-', ''), 1, 8);
+  end if;
+
+  chosen_display_name := coalesce(
+    nullif(trim(requested_display_name), ''),
+    nullif(user_metadata ->> 'display_name', ''),
+    safe_username
+  );
+
+  insert into public.profiles (id, username, display_name)
+  values (current_user_id, safe_username, chosen_display_name)
+  on conflict (id) do update
+    set username = coalesce(public.profiles.username, excluded.username),
+        display_name = coalesce(nullif(public.profiles.display_name, ''), excluded.display_name);
+
+  return jsonb_build_object('id', current_user_id, 'username', safe_username);
+end;
+$;
+
+create or replace function public.ensure_beyond_profile()
+returns jsonb
+language sql
+security definer
+set search_path = public, auth
+as $
+  select public.ensure_beyond_profile(null::text, null::text);
+$;
+
+revoke all on function public.ensure_beyond_profile(text, text) from public;
+revoke all on function public.ensure_beyond_profile() from public;
+grant execute on function public.ensure_beyond_profile(text, text) to authenticated;
+grant execute on function public.ensure_beyond_profile() to authenticated;
 
 -- This baseline intentionally does not create privileged RPC functions or policies
 -- for messaging, live rooms, notifications, blocking, or recommendation scoring.
