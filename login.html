@@ -14,10 +14,12 @@
 <div class="login-options" id="loginOptions">
 <button class="provider-button" id="qrLogin" type="button"><span class="provider-icon qr-icon" aria-hidden="true">▦</span><span>Use QR code</span></button>
 <button class="provider-button" id="emailLoginChoice" type="button"><span class="provider-icon user-icon" aria-hidden="true">●</span><span>Use email and password</span></button>
+<button class="provider-button" id="phoneLoginChoice" type="button"><span class="provider-icon phone-icon" aria-hidden="true">☎</span><span>Use phone number</span></button>
 <button class="provider-button" data-provider="facebook" type="button"><span class="provider-icon facebook-icon" aria-hidden="true">f</span><span>Continue with Facebook</span></button>
 <button class="provider-button" data-provider="google" type="button"><span class="provider-icon google-icon" aria-hidden="true">G</span><span>Continue with Google</span><span class="last-used">Last used</span></button>
 <button class="provider-button" data-provider="apple" type="button"><span class="provider-icon apple-icon" aria-hidden="true">●</span><span>Continue with Apple</span></button>
 </div>
+<div class="email-login" id="phoneLogin" hidden><button class="back-options" id="phoneBackOptions" type="button">← All login options</button><form id="phoneLoginForm" novalidate><label for="loginPhone">Phone number</label><input id="loginPhone" type="tel" autocomplete="tel" inputmode="tel" placeholder="+233…" required><div id="loginPhoneCodeWrap" hidden><label for="loginPhoneCode">SMS verification code</label><input id="loginPhoneCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="Enter code"></div><p id="phoneLoginMessage" class="message" role="status" aria-live="polite"></p><button id="phoneLoginButton" class="submit" type="submit">Send verification code</button></form></div>
 <div class="email-login" id="emailLogin" hidden>
 <button class="back-options" id="backOptions" type="button">← All login options</button>
 <form id="loginForm" novalidate>
