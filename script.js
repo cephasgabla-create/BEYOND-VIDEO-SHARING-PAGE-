@@ -75,7 +75,14 @@ async function loadForYouFeed(){
   }
   try{
     let rows=null;
-    const blocked=await getBeyondBlockedUserIds();
+    // Blocking is an optional feature in the baseline SQL setup. If its RPC
+    // has not been installed yet, keep the feed usable and report the issue.
+    let blocked=new Set();
+    try{
+      blocked=await getBeyondBlockedUserIds();
+    }catch(blockError){
+      console.warn("Beyond block list is unavailable; loading the feed without block filtering:",blockError);
+    }
     const rpc=await db.rpc("get_beyond_for_you_feed",{p_limit:50});
     if(!rpc.error)rows=(rpc.data||[]).filter(x=>!blocked.has(x.user_id)).map(normalizeRecommendedVideo);
     else rows=(await buildClientForYouFeed(db,50)).filter(x=>!blocked.has(x.user_id));
@@ -439,8 +446,10 @@ async function updateAllFollowButtons(){
  await Promise.all(buttons.map(b=>{const row=b.closest(".creator-row");return row?updateFollowButton(row.querySelector("h3")?.textContent.replace(/^@/,""),b):null}));
 }
 async function showFollowing(){
+ const feed=document.getElementById("feed");
  const db=initBeyondDatabase();const user=await getCurrentBeyondUser();
  if(!db||!user){location.href="login.html";return}
+ if(!feed)return;
  beyondActiveFeed="following";
  const {data:follows,error:followError}=await db.from("follows").select("following_id").eq("follower_id",user.id);
  if(followError){alert("Could not load your Following feed.");return}
