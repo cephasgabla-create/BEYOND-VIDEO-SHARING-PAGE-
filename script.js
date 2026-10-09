@@ -1,12 +1,29 @@
 let currentPostId=null;
 
-document.addEventListener("DOMContentLoaded",()=>{loadBeyondVideos();loadSocialPosts();activateVideoObserver();updateAllFollowButtons();enableBeyondFollowRealtime();const u=localStorage.getItem("beyondUsername");if(u){const avatar=document.getElementById("composerAvatar");if(avatar)avatar.textContent=u.charAt(0).toUpperCase();}if(localStorage.getItem("beyondTheme")==="light")document.body.classList.add("light-theme")});
+document.addEventListener("DOMContentLoaded",()=>{loadBeyondVideos();loadSocialPosts();activateVideoObserver();updateAllFollowButtons();enableBeyondFollowRealtime();startBeyondFeedAutoRefresh();document.getElementById("refreshBeyondFeed")?.addEventListener("click",refreshBeyondFeed);const u=localStorage.getItem("beyondUsername");if(u){const avatar=document.getElementById("composerAvatar");if(avatar)avatar.textContent=u.charAt(0).toUpperCase();}if(localStorage.getItem("beyondTheme")==="light")document.body.classList.add("light-theme")});
 
 function openDatabase(){return new Promise((resolve,reject)=>{const request=indexedDB.open("BeyondDatabase",4);request.onupgradeneeded=e=>{const db=e.target.result;if(!db.objectStoreNames.contains("videos"))db.createObjectStore("videos",{keyPath:"id",autoIncrement:true});if(!db.objectStoreNames.contains("comments"))db.createObjectStore("comments",{keyPath:"id",autoIncrement:true});if(!db.objectStoreNames.contains("likes"))db.createObjectStore("likes",{keyPath:"key"});if(!db.objectStoreNames.contains("notifications"))db.createObjectStore("notifications",{keyPath:"id",autoIncrement:true});if(!db.objectStoreNames.contains("socialPosts"))db.createObjectStore("socialPosts",{keyPath:"id",autoIncrement:true})};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)})}
 
 let beyondActiveFeed="for-you";
 let beyondForYouChannel=null;
 let beyondFeedRefreshTimer=null;
+let beyondFeedRefreshInterval=null;
+
+async function refreshBeyondFeed(){
+  const button=document.getElementById("refreshBeyondFeed");
+  if(button){button.disabled=true;button.textContent="↻ Refreshing…";}
+  try{await loadBeyondVideos();}
+  finally{if(button){button.disabled=false;button.textContent="↻ Refresh";}}
+}
+function startBeyondFeedAutoRefresh(){
+  if(beyondFeedRefreshInterval)clearInterval(beyondFeedRefreshInterval);
+  beyondFeedRefreshInterval=setInterval(()=>{
+    if(document.visibilityState==="visible")scheduleForYouRefresh();
+  },45000);
+  document.addEventListener("visibilitychange",()=>{
+    if(document.visibilityState==="visible")scheduleForYouRefresh();
+  });
+}
 
 async function loadBeyondVideos(){
   return loadForYouFeed();
