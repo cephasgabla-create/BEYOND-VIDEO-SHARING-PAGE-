@@ -1,4 +1,4 @@
-let contentItems=[];let currentEditId=null;let currentFilter="all";let usingSupabase=false;
+let contentItems=[];let currentEditId=null;let currentFilter="all";let currentMediaFilter="all";let usingSupabase=false;
 const selectedIds=new Set();
 let currentPage=1;
 const PAGE_SIZE=8;
@@ -14,7 +14,8 @@ document.addEventListener("DOMContentLoaded",()=>{
     document.querySelectorAll(".tabs button").forEach(x=>x.classList.remove("active"));
     b.classList.add("active"); currentFilter=b.dataset.filter; render();
   });
-  document.getElementById("searchContent").oninput=render;
+  document.getElementById("searchContent").oninput=()=>{currentPage=1;render()};
+  document.getElementById("mediaTypeFilter")?.addEventListener("change",e=>{currentMediaFilter=e.target.value;currentPage=1;render()});
   document.getElementById("sortContent").onchange=render;
   document.getElementById("refreshContent")?.addEventListener("click",loadContent);
   document.getElementById("selectAll")?.addEventListener("change",togglePageSelection);
@@ -67,7 +68,7 @@ async function loadContent(){
     contentItems=(videos||[]).map(v=>({
       id:v.id,caption:v.caption||"",hashtags:v.hashtags||"",status:v.status||"published",
       views:Number(v.views_count||0),likeCount:likeMap[v.id]??Number(v.likes_count||0),
-      commentCount:commentMap[v.id]??0,createdAt:v.created_at,videoUrl:v.video_url,
+      commentCount:commentMap[v.id]??0,createdAt:v.created_at,videoUrl:v.video_url,mediaType:detectMediaType(v.media_type,v.video_url,v.file_type),
       visibility:v.visibility||"public",commentsEnabled:v.comments_enabled!==false
     }));
     updateStats(); render(); setupRealtime(db,user.id); clearContentError();
@@ -90,7 +91,7 @@ function showContentError(message){
 function clearContentError(){
   const empty=document.getElementById("emptyState");
   if(!empty)return;
-  empty.innerHTML=`<div>🎬</div><h2>No content yet</h2><p>Upload your first Beyond video and manage it here.</p><button id="uploadContent">Upload video</button>`;
+  empty.innerHTML=`<div>🎬</div><h2>No matching content</h2><p>Try another search or media filter, or publish a photo or video.</p><button id="uploadContent">Upload content</button>`;
   document.getElementById("uploadContent")?.addEventListener("click",()=>{location.href="upload.html"});
 }
 function reloadContent(){loadContent()}
@@ -107,10 +108,11 @@ function updateStats(){
 
 
 function compact(n){return n>999?((n/1000).toFixed(n>9999?0:1)+"K"):String(n)}
+function detectMediaType(...values){const text=values.filter(Boolean).join(" ").toLowerCase();return /\.(png|jpe?g|gif|webp|avif|bmp)(\?|#|$)|image\//.test(text)?"photo":"video"}
 
 function filteredItems(){
   const q=document.getElementById("searchContent").value.trim().toLowerCase(),sort=document.getElementById("sortContent").value;
-  const items=contentItems.filter(v=>(currentFilter==="all"||v.status===currentFilter)&&((v.caption||"").toLowerCase().includes(q)||(v.hashtags||"").toLowerCase().includes(q)));
+  const items=contentItems.filter(v=>(currentFilter==="all"||v.status===currentFilter)&&(currentMediaFilter==="all"||detectMediaType(v.mediaType,v.videoUrl)===currentMediaFilter)&&((v.caption||"").toLowerCase().includes(q)||(v.hashtags||"").toLowerCase().includes(q)));
   items.sort((a,b)=>sort==="oldest"?new Date(a.createdAt)-new Date(b.createdAt):sort==="likes"?b.likeCount-a.likeCount:new Date(b.createdAt)-new Date(a.createdAt));
   return items;
 }
@@ -125,14 +127,15 @@ function render(){
     const row=document.createElement("article");row.className="content-row"+(selectedIds.has(String(v.id))?" selected":"");
     const check=document.createElement("input");check.type="checkbox";check.className="row-select";check.checked=selectedIds.has(String(v.id));check.setAttribute("aria-label","Select video");
     check.onchange=()=>{check.checked?selectedIds.add(String(v.id)):selectedIds.delete(String(v.id));row.classList.toggle("selected",check.checked);updateBulkControls()};
-    const thumb=document.createElement("video");thumb.className="thumb";thumb.muted=true;thumb.preload="metadata";thumb.playsInline=true;
-    const thumbSrc=getVideoSource(v);
-    if(thumbSrc) thumb.src=thumbSrc;
+    const thumbSrc=getVideoSource(v);let thumb;
+    if(detectMediaType(v.mediaType,v.videoUrl)==="photo"){thumb=document.createElement("img");thumb.alt="Photo thumbnail";thumb.loading="lazy";if(thumbSrc)thumb.src=thumbSrc;}
+    else{thumb=document.createElement("video");thumb.muted=true;thumb.preload="metadata";thumb.playsInline=true;if(thumbSrc)thumb.src=thumbSrc;}
+    thumb.className="thumb";
     const info=document.createElement("div");info.className="content-info";
-    const h=document.createElement("h3");h.textContent=v.caption||"Untitled Beyond video";
+    const h=document.createElement("h3");h.textContent=v.caption||(detectMediaType(v.mediaType,v.videoUrl)==="photo"?"Untitled Beyond photo":"Untitled Beyond video");
     const badge=document.createElement("span");badge.className="status "+(v.status==="draft"?"draft":"published");badge.textContent=v.status;h.appendChild(badge);
     const p=document.createElement("p");p.textContent=v.hashtags||"No hashtags";
-    const meta=document.createElement("div");meta.className="meta";meta.textContent="👁 "+v.views+"   ❤️ "+v.likeCount+"   💬 "+v.commentCount+"   • "+new Date(v.createdAt).toLocaleDateString();
+    const meta=document.createElement("div");meta.className="meta";meta.textContent=(detectMediaType(v.mediaType,v.videoUrl)==="photo"?"🖼 Photo":"🎬 Video")+"   ·   👁 "+v.views+"   ❤️ "+v.likeCount+"   💬 "+v.commentCount+"   • "+(v.createdAt?new Date(v.createdAt).toLocaleDateString():"Date unavailable");
     info.append(h,p,meta);
     const actions=document.createElement("div");actions.className="actions";actions.innerHTML='<button class="preview-btn">Preview</button><button>Edit</button><button></button><button class="delete">Delete</button>';
     actions.children[2].textContent=v.status==="draft"?"Publish":"Hide";
@@ -276,7 +279,7 @@ function openEditor(id){
 }
 function closeEditor(){
   document.getElementById("editModal").classList.remove("show");
-  const video=document.getElementById("editVideoPreview");video.pause();video.removeAttribute("src");video.load();currentEditId=null;
+  const video=document.getElementById("editVideoPreview"),image=document.getElementById("editImagePreview");video.pause();video.removeAttribute("src");video.load();image.removeAttribute("src");video.hidden=false;image.hidden=true;currentEditId=null;
 }
 function updateCaptionCount(){const el=document.getElementById("editCaption"),count=document.getElementById("captionCount");if(el&&count)count.textContent=el.value.length+" / 150"}
 async function saveEditor(forcedStatus){
@@ -295,14 +298,14 @@ document.getElementById("editModal")?.addEventListener("click",e=>{if(e.target.i
 function openPreview(id){
   const v=findContentItem(id);if(!v)return;
   const m=document.getElementById("previewModal"),x=document.getElementById("previewVideo");
-  document.getElementById("previewTitle").textContent=v.caption||"Untitled Beyond video";
+  document.getElementById("previewTitle").textContent=v.caption||(detectMediaType(v.mediaType,v.videoUrl)==="photo"?"Untitled Beyond photo":"Untitled Beyond video");
   document.getElementById("previewTags").textContent=v.hashtags||"No hashtags";
   document.getElementById("previewStats").textContent="Views "+v.views+" • Likes "+v.likeCount+" • Comments "+v.commentCount+" • "+(v.visibility||"public");
-  x.src=getVideoSource(v);x.load();m.classList.add("show");
+  const isPhoto=detectMediaType(v.mediaType,v.videoUrl)==="photo",image=document.getElementById("previewImage"),src=getVideoSource(v);x.hidden=isPhoto;image.hidden=!isPhoto;x.pause();if(isPhoto){x.removeAttribute("src");x.load();image.src=src||""}else{image.removeAttribute("src");x.src=src;x.load()}m.classList.add("show");
 }
 function closePreview(){
   const m=document.getElementById("previewModal"),x=document.getElementById("previewVideo");
-  m.classList.remove("show");x.pause();x.removeAttribute("src");x.load();
+  m.classList.remove("show");x.pause();x.removeAttribute("src");x.load();const image=document.getElementById("previewImage");image.removeAttribute("src");x.hidden=false;image.hidden=true;
 }
 window.addEventListener("beforeunload",()=>{
   if(realtimeReloadTimer)clearTimeout(realtimeReloadTimer);
