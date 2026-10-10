@@ -111,8 +111,8 @@ button{cursor:pointer}
 .comment-input input{flex:1;background:var(--surface-2);border:1px solid var(--border);outline:0;color:#fff;border-radius:13px;padding:12px}
 .comment-input button{border:0;background:#fff;color:#111;border-radius:13px;padding:0 17px;font-weight:800}
 .stories{
-  position:fixed;top:76px;left:50%;transform:translateX(-50%);width:min(700px,94%);
-  display:flex;gap:12px;overflow-x:auto;z-index:50;padding:8px 2px;scrollbar-width:none
+  position:relative;top:auto;left:auto;transform:none;width:min(700px,94%);
+  display:flex;gap:12px;overflow-x:auto;z-index:2;padding:12px 2px;margin:0 auto 10px;scrollbar-width:none
 }
 .stories::-webkit-scrollbar{display:none}
 .story,.story-add{
@@ -145,7 +145,7 @@ button{cursor:pointer}
 }
 @media(max-width:700px){
   .top-bar{height:58px;padding:0 14px}.logo{font-size:22px}.nav-links{display:none}
-  .top-actions .login-btn{padding:8px 11px}.stories{top:65px}.post-composer{top:137px}
+  .top-actions .login-btn{padding:8px 11px}.stories{top:auto}.post-composer{top:137px}
   #feed{padding-top:58px}.video-card{height:calc(100vh - 58px);min-height:520px}
   .video-info{left:16px;right:85px;bottom:24px}.video-actions{right:10px;bottom:20px}
   .video-actions button{width:46px;min-height:46px}.bottom-nav{bottom:8px;width:calc(100% - 16px);justify-content:space-around}
