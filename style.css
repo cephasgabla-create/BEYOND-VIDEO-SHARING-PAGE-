@@ -347,3 +347,21 @@ button{cursor:pointer}
 .post-composer,
 #postComposer,
 [data-role="post-composer"]{display:none!important;}
+
+
+/* Keep Log in at the upper-right, similar to TikTok's desktop layout. */
+.beyond-desktop-login{
+  position:fixed;top:16px;right:24px;z-index:450;
+  border:0;border-radius:6px;background:#fe2c55;color:#fff;
+  padding:10px 24px;font-weight:800;font-size:15px;
+  box-shadow:0 4px 16px rgba(0,0,0,.22)
+}
+.beyond-desktop-login:hover{background:#e9274d}
+@media(max-width:1099px){
+  .beyond-desktop-login{display:none}
+  .top-bar .top-actions .login-btn{
+    display:block;margin-left:4px;background:#fe2c55!important;color:#fff!important;
+    border-radius:6px;padding:8px 14px;font-weight:800!important;white-space:nowrap
+  }
+  .top-bar .top-actions .search-btn{display:block}
+}
