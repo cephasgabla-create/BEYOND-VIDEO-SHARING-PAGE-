@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111827">
+  <title>Beyond Backend Check</title>
+  <style>
+    :root{color-scheme:dark;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;background:#0b1020;color:#eef2ff}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;padding:28px 16px;background:radial-gradient(circle at top,#202b50,#0b1020 55%)}
+    main{max-width:760px;margin:0 auto}.brand{font-size:22px;font-weight:800;letter-spacing:-.5px}.brand b{display:inline-grid;place-items:center;background:#ff2d55;border-radius:10px;width:34px;height:34px;margin-right:8px}
+    h1{font-size:clamp(28px,5vw,42px);margin:28px 0 8px}.muted{color:#aab4d0;line-height:1.6}.panel{margin-top:22px;padding:20px;border:1px solid #2b3554;background:#111a30;border-radius:18px}
+    .check{display:flex;gap:12px;align-items:flex-start;padding:14px 0;border-bottom:1px solid #28314a}.check:last-child{border:0}.dot{flex:0 0 12px;height:12px;border-radius:50%;margin-top:5px;background:#64748b}.dot.ok{background:#22c55e}.dot.fail{background:#fb7185}.dot.wait{background:#fbbf24}
+    .check strong{display:block;margin-bottom:4px}.detail{color:#aab4d0;font-size:14px;overflow-wrap:anywhere}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+    a,button{border:0;border-radius:11px;padding:11px 15px;font-weight:700;text-decoration:none;cursor:pointer}.primary{background:#ff2d55;color:white}.secondary{background:#202b45;color:#eef2ff}
+    .notice{font-size:13px;color:#aab4d0;margin-top:16px}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+</head>
+<body>
+<main>
+  <div class="brand"><b>B</b>Beyond</div>
+  <h1>Backend connection check</h1>
+  <p class="muted">This page checks whether Beyond can reach its configured Supabase backend and read the core database tables. It does not change or delete your data.</p>
+  <section class="panel" aria-live="polite">
+    <div class="check"><span class="dot wait" id="clientDot"></span><div><strong>Supabase client</strong><div class="detail" id="clientDetail">Checking configuration…</div></div></div>
+    <div class="check"><span class="dot wait" id="authDot"></span><div><strong>Authentication session</strong><div class="detail" id="authDetail">Checking current sign-in…</div></div></div>
+    <div class="check"><span class="dot wait" id="videosDot"></span><div><strong>Videos database table</strong><div class="detail" id="videosDetail">Checking read access…</div></div></div>
+    <div class="check"><span class="dot wait" id="profilesDot"></span><div><strong>Profiles database table</strong><div class="detail" id="profilesDetail">Checking read access…</div></div></div>
+  </section>
+  <div class="actions">
+    <button class="primary" id="retryButton" type="button">Run checks again</button>
+    <a class="secondary" href="index.html">Back to Beyond</a>
+    <a class="secondary" href="upload.html">Open upload</a>
+  </div>
+  <p class="notice">Never paste a Google Client Secret or Supabase service-role key into this page or into public website files. A failed check may mean the database SQL setup or access policies still need to be applied in Supabase.</p>
+</main>
+<script>
+(function(){
+  function status(name,kind,message){var dot=document.getElementById(name+"Dot");var detail=document.getElementById(name+"Detail");dot.className="dot "+kind;detail.textContent=message;}
+  async function run(){
+    ["client","auth","videos","profiles"].forEach(function(n){status(n,"wait","Checking…");});
+    var db;
+    try{
+      if(typeof initBeyondDatabase!=="function") throw new Error("supabase.js did not load.");
+      db=window.beyondDB||initBeyondDatabase();
+      if(!db) throw new Error("Supabase client could not start. Check the project URL and public key in supabase.js.");
+      status("client","ok","Client initialized with the configured Supabase project.");
+    }catch(e){status("client","fail",e.message);["auth","videos","profiles"].forEach(function(n){status(n,"fail","Not checked because the client is unavailable.");});return;}
+    try{
+      var result=await db.auth.getSession();
+      if(result.error) throw result.error;
+      var user=result.data&&result.data.session&&result.data.session.user;
+      status("auth",user?"ok":"wait",user?"Signed in as "+(user.email||user.id)+".":"Connected; no active session in this browser. Sign in to test uploads.");
+    }catch(e){status("auth","fail",e.message);}
+    try{
+      var v=await db.from("videos").select("id").limit(1);
+      if(v.error) throw v.error;
+      status("videos","ok","Table is reachable. "+(v.data.length?"At least one video row is readable.":"No readable video rows yet."));
+    }catch(e){status("videos","fail",e.message);}
+    try{
+      var p=await db.from("profiles").select("id").limit(1);
+      if(p.error) throw p.error;
+      status("profiles","ok","Table is reachable. "+(p.data.length?"At least one profile row is readable.":"No readable profile rows yet."));
+    }catch(e){status("profiles","fail",e.message);}
+  }
+  document.getElementById("retryButton").addEventListener("click",run);
+  run();
+})();
+</script>
+</body>
+</html>
