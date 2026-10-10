@@ -18,7 +18,7 @@
     const db=window.beyondDB||initBeyondDatabase();
     if(!db){if(!isPublic)location.replace(loginUrl());return null}
     // Wait for Supabase to finish restoring the saved session from this browser.
-    if(!initialSessionSeen) await authReady;
+    if(!initialSessionSeen) await Promise.race([authReady,new Promise(resolve=>setTimeout(resolve,3000))]);
     const {data,error}=await db.auth.getSession();
     if(error||!data.session){clearLegacyAuth();if(!isPublic)location.replace(loginUrl());return null}
     window.beyondAuthSession=data.session;
