@@ -1,38 +1,207 @@
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><meta name="theme-color" content="#1f1f1f">
-<title>Log in to Beyond</title><link rel="stylesheet" href="login.css">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="supabase.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1f1f1f">
+
+  <title>Log in to Beyond</title>
+  <meta
+    name="description"
+    content="Log in to Beyond to discover videos, follow creators, and share your moments."
+  >
+
+  <link rel="stylesheet" href="login.css">
+
+  <!-- Supabase client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
 </head>
+
 <body>
-<main class="login-screen">
-<a class="close-login" href="index.html" aria-label="Close login">×</a>
-<section class="login-panel" aria-labelledby="loginTitle">
-<a class="brand" href="index.html" aria-label="Beyond home"><span class="brand-mark">B</span>Beyond</a>
-<h1 id="loginTitle">Log in to Beyond</h1>
-<div class="login-options" id="loginOptions">
-<button class="provider-button" id="qrLogin" type="button"><span class="provider-icon qr-icon" aria-hidden="true">▦</span><span>Use QR code</span></button>
-<button class="provider-button" id="emailLoginChoice" type="button"><span class="provider-icon user-icon" aria-hidden="true">●</span><span>Use email and password</span></button>
-<button class="provider-button" id="phoneLoginChoice" type="button"><span class="provider-icon phone-icon" aria-hidden="true">☎</span><span>Use phone number</span></button>
-<button class="provider-button" data-provider="facebook" type="button"><span class="provider-icon facebook-icon" aria-hidden="true">f</span><span>Continue with Facebook</span></button>
-<button class="provider-button" data-provider="google" type="button"><span class="provider-icon google-icon" aria-hidden="true">G</span><span>Continue with Google</span><span class="last-used">Last used</span></button>
-<button class="provider-button" data-provider="apple" type="button"><span class="provider-icon apple-icon" aria-hidden="true">●</span><span>Continue with Apple</span></button>
-</div>
-<div class="email-login" id="phoneLogin" hidden><button class="back-options" id="phoneBackOptions" type="button">← All login options</button><form id="phoneLoginForm" novalidate><label for="loginPhone">Phone number</label><input id="loginPhone" type="tel" autocomplete="tel" inputmode="tel" placeholder="+233…" required><div id="loginPhoneCodeWrap" hidden><label for="loginPhoneCode">SMS verification code</label><input id="loginPhoneCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="Enter code"></div><p id="phoneLoginMessage" class="message" role="status" aria-live="polite"></p><button id="phoneLoginButton" class="submit" type="submit">Send verification code</button></form></div>
-<div class="email-login" id="emailLogin" hidden>
-<button class="back-options" id="backOptions" type="button">← All login options</button>
-<form id="loginForm" novalidate>
-<label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" required placeholder="Enter your email">
-<label for="password">Password</label><div class="password-wrap"><input id="password" name="password" type="password" autocomplete="current-password" required placeholder="Enter your password"><button class="password-toggle" id="showPassword" type="button" aria-pressed="false">Show</button></div>
-<div class="form-row"><span></span><a id="forgotPassword" class="forgot" href="#">Forgot password?</a></div>
-<p id="loginMessage" class="message" aria-live="polite" role="status"></p><button id="loginButton" class="submit" type="submit">Log in</button>
-</form>
-</div>
-<p id="socialMessage" class="social-message" aria-live="polite" role="status"></p>
-<p class="terms">By continuing with an account located in <strong>Ghana</strong>, you agree to our <a href="terms.html">Terms of Service</a> and acknowledge that you have read our <a href="privacy-safety.html">Privacy Policy</a>.</p>
-</section>
-<footer class="signup-footer"><span>Don’t have an account?</span> <a href="signup.html">Sign up</a></footer>
-</main>
-<script src="login.js"></script>
-</body></html>
+  <main class="login-screen">
+    <a
+      class="close-login"
+      href="index.html"
+      aria-label="Close login and return to Beyond home"
+    >×</a>
+
+    <section class="login-panel" aria-labelledby="loginTitle">
+
+      <!-- Beyond branding -->
+      <a class="brand" href="index.html" aria-label="Beyond home">
+        <span class="brand-mark" aria-hidden="true">B</span>
+        Beyond
+      </a>
+
+      <h1 id="loginTitle">Log in to Beyond</h1>
+
+      <!-- Login options -->
+      <div class="login-options" id="loginOptions">
+
+        <button class="provider-button" id="qrLogin" type="button">
+          <span class="provider-icon qr-icon" aria-hidden="true">▦</span>
+          <span>Use QR code</span>
+        </button>
+
+        <button class="provider-button" id="emailLoginChoice" type="button">
+          <span class="provider-icon user-icon" aria-hidden="true">●</span>
+          <span>Use email and password</span>
+        </button>
+
+        <button class="provider-button" id="phoneLoginChoice" type="button">
+          <span class="provider-icon phone-icon" aria-hidden="true">☎</span>
+          <span>Use phone number</span>
+        </button>
+
+        <button class="provider-button" data-provider="facebook" type="button">
+          <span class="provider-icon facebook-icon" aria-hidden="true">f</span>
+          <span>Continue with Facebook</span>
+        </button>
+
+        <button class="provider-button" data-provider="google" type="button">
+          <span class="provider-icon google-icon" aria-hidden="true">G</span>
+          <span>Continue with Google</span>
+        </button>
+
+        <button class="provider-button" data-provider="apple" type="button">
+          <span class="provider-icon apple-icon" aria-hidden="true">●</span>
+          <span>Continue with Apple</span>
+        </button>
+      </div>
+
+      <!-- Phone login -->
+      <div class="email-login" id="phoneLogin" hidden>
+        <button class="back-options" id="phoneBackOptions" type="button">
+          ← All login options
+        </button>
+
+        <form id="phoneLoginForm" novalidate>
+          <label for="loginPhone">Phone number</label>
+          <input
+            id="loginPhone"
+            name="phone"
+            type="tel"
+            autocomplete="tel"
+            inputmode="tel"
+            placeholder="+233..."
+            required
+          >
+
+          <div id="loginPhoneCodeWrap" hidden>
+            <label for="loginPhoneCode">SMS verification code</label>
+            <input
+              id="loginPhoneCode"
+              name="verificationCode"
+              type="text"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              maxlength="8"
+              placeholder="Enter code"
+            >
+          </div>
+
+          <p
+            id="phoneLoginMessage"
+            class="message"
+            role="status"
+            aria-live="polite"
+          ></p>
+
+          <button id="phoneLoginButton" class="submit" type="submit">
+            Send verification code
+          </button>
+        </form>
+      </div>
+
+      <!-- Email and password login -->
+      <div class="email-login" id="emailLogin" hidden>
+        <button class="back-options" id="backOptions" type="button">
+          ← All login options
+        </button>
+
+        <form id="loginForm" novalidate>
+          <label for="email">Email</label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            autocomplete="email"
+            inputmode="email"
+            autocapitalize="none"
+            spellcheck="false"
+            required
+            placeholder="Enter your email"
+          >
+
+          <label for="password">Password</label>
+
+          <div class="password-wrap">
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              required
+              placeholder="Enter your password"
+            >
+
+            <button
+              class="password-toggle"
+              id="showPassword"
+              type="button"
+              aria-pressed="false"
+              aria-label="Show password"
+            >Show</button>
+          </div>
+
+          <div class="form-row">
+            <span></span>
+            <a id="forgotPassword" class="forgot" href="#">
+              Forgot password?
+            </a>
+          </div>
+
+          <p
+            id="loginMessage"
+            class="message"
+            aria-live="polite"
+            role="status"
+          ></p>
+
+          <button id="loginButton" class="submit" type="submit">
+            Log in
+          </button>
+        </form>
+      </div>
+
+      <!-- Messages from social login -->
+      <p
+        id="socialMessage"
+        class="social-message"
+        aria-live="polite"
+        role="status"
+      ></p>
+
+      <!-- Legal links -->
+      <p class="terms">
+        By continuing with an account located in <strong>Ghana</strong>,
+        you agree to our
+        <a href="terms.html">Terms of Service</a>
+        and acknowledge that you have read our
+        <a href="privacy-policy.html">Privacy Policy</a>.
+      </p>
+    </section>
+
+    <footer class="signup-footer">
+      <span>Don’t have an account?</span>
+      <a href="signup.html">Sign up</a>
+    </footer>
+  </main>
+
+  <!-- Keep your existing login functionality -->
+  <script src="login.js"></script>
+</body>
+</html>
+```
