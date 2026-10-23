@@ -18,15 +18,37 @@
     search:function(){go("search.html");},
     creatorStudio:function(){go("creator-studio.html");}
   };
+  function showBootProblem(message){
+    var panel=document.getElementById("beyondBootDiagnostic");
+    if(!panel){
+      panel=document.createElement("section");
+      panel.id="beyondBootDiagnostic";
+      panel.setAttribute("role","alert");
+      panel.style.cssText="position:fixed;z-index:999999;inset:16px 16px auto 16px;max-width:720px;margin:0 auto;padding:18px 20px;background:#fff;color:#151515;border:2px solid #fe2c55;border-radius:14px;box-shadow:0 12px 48px #0008;font:15px/1.5 Arial,sans-serif";
+      document.body.appendChild(panel);
+    }
+    panel.innerHTML="<strong style='font-size:19px'>Beyond could not start correctly.</strong><p style='margin:8px 0'>The page opened, but a script or resource failed. Refresh once; if it continues, share this message with support.</p><p style='overflow-wrap:anywhere;color:#9d1232'></p><button type='button' style='padding:9px 14px;border:0;border-radius:8px;background:#fe2c55;color:white;font-weight:bold' onclick='location.reload()'>Reload Beyond</button>";
+    panel.querySelector("p:last-of-type").textContent=String(message||"Unknown startup error").slice(0,500);
+  }
   window.addEventListener("error",function(e){
     if(e.target && e.target.tagName==="SCRIPT" && e.target.src){
       console.warn("Beyond script failed to load:",e.target.src);
+      showBootProblem("Could not load script: "+e.target.src);
+    } else if(e.message) {
+      console.error("Beyond startup error:",e.message,e.filename,e.lineno);
+      showBootProblem(e.message+" ("+(e.filename||"page")+(e.lineno?":"+e.lineno:"")+")");
     }
   },true);
+  window.addEventListener("unhandledrejection",function(e){
+    var reason=e.reason;
+    console.error("Beyond unhandled startup rejection:",reason);
+    showBootProblem(reason && reason.message ? reason.message : String(reason||"Unhandled promise rejection"));
+  });
 })();
 </script>
 </head>
 <body>
+  <noscript><div style="position:fixed;z-index:999999;inset:12px;background:#fff;color:#111;padding:24px;font:16px/1.5 Arial,sans-serif">Beyond needs JavaScript enabled to run. Enable JavaScript in your browser and reload this page.</div></noscript>
   <aside class="beyond-desktop-sidebar" id="beyondDesktopSidebar">
     <div class="beyond-side-brand"><span class="beyond-brand-mark">B</span><span>Beyond</span></div>
     <button class="beyond-side-search" onclick="openSearch()">⌕ <span>Search</span></button>
