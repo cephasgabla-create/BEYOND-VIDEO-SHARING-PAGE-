@@ -22,8 +22,26 @@
       try{
         const {error}=await db.rpc("ensure_beyond_profile");
         if(error){
-          console.warn("Beyond profile sync failed. Check that supabase-setup.sql has been applied:",error.message);
-          return false;
+          // Keep Google sign-in usable even if the optional profile RPC has not
+          // been installed yet. The profiles RLS policy permits users to create
+          // only their own row (id must equal auth.uid()).
+          console.warn("Beyond profile RPC unavailable; trying direct profile creation:",error.message);
+          const user=session.user;
+          const metadata=user.user_metadata||{};
+          const emailName=(user.email||"beyond_user").split("@")[0];
+          const base=String(metadata.username||emailName||"beyond_user")
+            .toLowerCase().replace(/[^a-z0-9._-]/g,"").slice(0,21)||"beyond_user";
+          const suffix=String(userId).replace(/-/g,"").slice(0,8);
+          const username=(base+"_"+suffix).slice(0,30);
+          const displayName=String(metadata.full_name||metadata.name||metadata.display_name||base).trim().slice(0,80)||username;
+          const {error:insertError}=await db.from("profiles").upsert(
+            {id:userId,username,display_name:displayName},
+            {onConflict:"id",ignoreDuplicates:true}
+          );
+          if(insertError){
+            console.warn("Beyond direct profile creation failed. Check profiles table grants and RLS policies:",insertError.message);
+            return false;
+          }
         }
         profileSyncedUsers.add(userId);
         window.beyondProfileReadyUserId=userId;
